@@ -103,6 +103,55 @@ export class CacheService implements OnModuleInit, OnModuleDestroy {
     await this.client.hdel(key, field);
   }
 
+  // ─── List operations — used by ConversationMemoryService ─────────────────
+
+  /**
+   * LPUSH: insere valor no topo da lista (newest-first ordering).
+   * Retorna o novo tamanho da lista.
+   */
+  async lpush(key: string, value: string): Promise<number> {
+    return this.client.lpush(key, value);
+  }
+
+  /**
+   * LTRIM: mantém apenas os elementos entre start e stop (inclusive).
+   * Usado para limitar o tamanho da janela de contexto.
+   */
+  async ltrim(key: string, start: number, stop: number): Promise<void> {
+    await this.client.ltrim(key, start, stop);
+  }
+
+  /**
+   * LRANGE: retorna elementos da lista entre start e stop.
+   * LRANGE 0 -1 = toda a lista.
+   */
+  async lrange(key: string, start: number, stop: number): Promise<string[]> {
+    return this.client.lrange(key, start, stop);
+  }
+
+  /**
+   * Operação atômica: LPUSH + LTRIM + EXPIRE em pipeline.
+   * Usada pelo ConversationMemoryService para empurrar mensagem, manter
+   * janela e renovar TTL em uma única round-trip ao Redis.
+   *
+   * @param key       Chave da lista
+   * @param value     Valor serializado (JSON string)
+   * @param maxLen    Tamanho máximo da lista após trim (windowSize)
+   * @param ttlSeconds TTL deslizante em segundos
+   */
+  async lpushTrimExpire(
+    key: string,
+    value: string,
+    maxLen: number,
+    ttlSeconds: number,
+  ): Promise<void> {
+    const pipeline = this.client.pipeline();
+    pipeline.lpush(key, value);
+    pipeline.ltrim(key, 0, maxLen - 1);
+    pipeline.expire(key, ttlSeconds);
+    await pipeline.exec();
+  }
+
   getClient(): Redis {
     return this.client;
   }

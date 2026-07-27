@@ -14,6 +14,7 @@ import { WhatsappOutboundConsumer } from './consumers/whatsapp-outbound.consumer
 import { WebhookInboundConsumer } from './consumers/webhook-inbound.consumer';
 import { EvolutionApiModule } from '../evolution/evolution-api.module';
 import { AiModule } from '../modules/ai/ai.module';
+import { MemoryModule } from '../memory/memory.module';
 
 @Module({
   imports: [
@@ -45,6 +46,8 @@ import { AiModule } from '../modules/ai/ai.module';
     EvolutionApiModule,
     // Módulo de IA — fornece AiService para o AiResponseConsumer
     AiModule,
+    // Módulo de memória — ConversationMemoryService (Redis + Postgres)
+    MemoryModule,
   ],
   providers: [
     AiResponseProducer,

@@ -2,13 +2,20 @@
 // AiResponseConsumer — Consumer de Fila de Respostas de IA
 //
 // RESPONSABILIDADE: Orquestrar o fluxo completo de resposta automática:
-//   1. Carregar contexto da conversa do banco
-//   2. Chamar AiService.generate() para obter a resposta
-//   3. Salvar a mensagem de resposta no banco
-//   4. Enfileirar o envio outbound (WhatsApp)
+//   1. Carregar configuração do agente (com cache Redis via AiService)
+//   2. Obter contexto da conversa via ConversationMemoryService (Redis → Postgres)
+//   3. Chamar AiService.generate() para obter a resposta
+//   4. Salvar a mensagem de resposta no banco
+//   5. Empurrar resposta para o contexto Redis (memória quente)
+//   6. Enfileirar o envio outbound (WhatsApp)
+//
+// MEMÓRIA EM DUAS CAMADAS (ver ConversationMemoryService):
+//   Redis   — contexto quente, janela deslizante, < 1ms, TTL 2h
+//   Postgres— fallback automático em caso de cache miss (cold start, restart)
 //
 // Este consumer é intencionalmente fino (thin consumer).
 // Toda a lógica de IA (montagem de prompt, chamada OpenAI) vive em AiService.
+// Toda a lógica de memória vive em ConversationMemoryService.
 // =============================================================================
 
 import { Processor, WorkerHost, OnWorkerEvent } from '@nestjs/bullmq';
@@ -17,6 +24,7 @@ import { Logger, Inject } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
 import { AiService } from '../../modules/ai/ai.service';
 import { WhatsappOutboundProducer } from '../producers/whatsapp-outbound.producer';
+import { ConversationMemoryService } from '../../memory/conversation-memory.service';
 import {
   QUEUE_AI_RESPONSE,
   JOB_SEND_AI_RESPONSE,
@@ -32,6 +40,8 @@ export class AiResponseConsumer extends WorkerHost {
     @Inject(AiService) private readonly aiService: AiService,
     @Inject(WhatsappOutboundProducer)
     private readonly outboundProducer: WhatsappOutboundProducer,
+    @Inject(ConversationMemoryService)
+    private readonly memory: ConversationMemoryService,
   ) {
     super();
   }
@@ -66,24 +76,14 @@ export class AiResponseConsumer extends WorkerHost {
       return;
     }
 
-    // ── 2. Carregar histórico recente da conversa ───────────────────────────────
-    // Carregamos contextWindowSize mensagens em ordem decrescente,
-    // depois invertemos para ordem cronológica (mais antiga → mais recente).
-    const recentMessages = await this.prisma.message.findMany({
-      where: {
-        conversationId,
-        deletedAt: null,
-        role: { in: ['USER', 'ASSISTANT'] },
-        content: { not: null },
-      },
-      orderBy: { createdAt: 'desc' },
-      take: agent.contextWindowSize,
-      select: { role: true, content: true },
-    });
-
-    const conversationHistory = recentMessages
-      .reverse()
-      .map((m) => ({ role: m.role as 'USER' | 'ASSISTANT', content: m.content }));
+    // ── 2. Obter contexto da conversa via memória em duas camadas ───────────────
+    // ConversationMemoryService.getContext() tenta Redis primeiro (< 1ms).
+    // Se não encontrar (cold start, Redis restart, TTL expirado), busca no
+    // Postgres e aquece o Redis em background para a próxima requisição.
+    const conversationHistory = await this.memory.getContext(
+      conversationId,
+      agent.contextWindowSize,
+    );
 
     // ── 3. Carregar contexto do cliente (nome para personalização) ──────────────
     const conversation = await this.prisma.conversation.findUnique({
@@ -124,13 +124,23 @@ export class AiResponseConsumer extends WorkerHost {
       },
     });
 
-    // ── 6. Atualizar timestamps da conversa ─────────────────────────────────────
+    // ── 6. Empurrar resposta para o contexto Redis ─────────────────────────────
+    // Mantém o contexto quente para a próxima mensagem do cliente.
+    // A mensagem do usuário já foi empurrada pelo WebhookInboundConsumer.
+    await this.memory.pushMessage(
+      conversationId,
+      'ASSISTANT',
+      result.text,
+      agent.contextWindowSize,
+    );
+
+    // ── 7. Atualizar timestamps da conversa ─────────────────────────────────────
     await this.prisma.conversation.update({
       where: { id: conversationId },
       data: { lastMessageAt: new Date() },
     });
 
-    // ── 7. Marcar mensagem original como processada ─────────────────────────────
+    // ── 8. Marcar mensagem original como processada ─────────────────────────────
     await this.prisma.message.update({
       where: { id: messageId },
       data: {
@@ -142,7 +152,7 @@ export class AiResponseConsumer extends WorkerHost {
       },
     });
 
-    // ── 8. Enfileirar envio outbound para o WhatsApp ────────────────────────────
+    // ── 9. Enfileirar envio outbound para o WhatsApp ────────────────────────────
     await this.outboundProducer.enqueue({
       tenantId,
       conversationId,

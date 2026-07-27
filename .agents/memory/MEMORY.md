@@ -1,3 +1,4 @@
 - [Auth system design](auth-system.md) — global guards in AppModule; @Public() must be checked in TenantGuard/RolesGuard when registered globally
 - [Evolution API integration](evolution-integration.md) — EvolutionApiService is pure HTTP, no business logic; WhatsappService orchestrates; reconnect via BullMQ
 - [AI service design](ai-service.md) — OpenAI Responses API (not Chat Completions); PromptBuilderService mounts system prompt automatically; AiAgent.description = personality
+- [AI Memory Architecture](ai-memory-architecture.md) — Redis hot context (List, TTL 2h) + Postgres fallback; nightly BullMQ cleanup for CLOSED convs; never block on Redis failures

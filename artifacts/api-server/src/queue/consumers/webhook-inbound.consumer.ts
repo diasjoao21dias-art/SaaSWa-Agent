@@ -17,6 +17,7 @@ import { Logger, Inject } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
 import { AiResponseProducer } from '../producers/ai-response.producer';
 import { WhatsappOutboundProducer } from '../producers/whatsapp-outbound.producer';
+import { ConversationMemoryService } from '../../memory/conversation-memory.service';
 import {
   QUEUE_WEBHOOK_INBOUND,
   JOB_PROCESS_INCOMING_MESSAGE,
@@ -29,6 +30,8 @@ import type {
   EvolutionQrCodeUpdatedData,
   EvolutionMessageContent,
 } from '../../evolution/interfaces/evolution.interfaces';
+
+import { MEMORY_MAX_WINDOW_SIZE } from '../../memory/memory.constants';
 
 // Tipo interno para a mensagem persistida (extraído do MessageType do Prisma)
 type MessageType = 'TEXT' | 'IMAGE' | 'AUDIO' | 'VIDEO' | 'DOCUMENT' | 'LOCATION' | 'STICKER' | 'REACTION';
@@ -50,6 +53,7 @@ export class WebhookInboundConsumer extends WorkerHost {
     @Inject(PrismaService) private readonly prisma: PrismaService,
     @Inject(AiResponseProducer) private readonly aiProducer: AiResponseProducer,
     @Inject(WhatsappOutboundProducer) private readonly reconnectProducer: WhatsappOutboundProducer,
+    @Inject(ConversationMemoryService) private readonly memory: ConversationMemoryService,
   ) {
     super();
   }
@@ -187,6 +191,17 @@ export class WebhookInboundConsumer extends WorkerHost {
         metadata: mediaUrl ? { mediaUrl } : {},
       },
     });
+
+    // Empurra mensagem para o contexto Redis (memória quente).
+    // Usamos MEMORY_MAX_WINDOW_SIZE como cap — o AiResponseConsumer lê apenas
+    // agent.contextWindowSize entradas (sempre ≤ MEMORY_MAX_WINDOW_SIZE),
+    // evitando uma query extra de agente apenas para o push.
+    await this.memory.pushMessage(
+      conversation.id,
+      'USER',
+      content,
+      MEMORY_MAX_WINDOW_SIZE,
+    );
 
     // Atualiza lastMessageAt da conversa
     await this.prisma.conversation.update({

@@ -20,6 +20,7 @@ import { configValidationSchema } from './config/config.validation';
 import { PrismaModule } from './database/prisma.module';
 import { CacheModule } from './cache/cache.module';
 import { QueueModule } from './queue/queue.module';
+import { MemoryModule } from './memory/memory.module';
 
 import { RequestIdMiddleware } from './common/middlewares/request-id.middleware';
 import { LoggerMiddleware } from './common/middlewares/logger.middleware';
@@ -71,6 +72,7 @@ import { SubscriptionsModule } from './modules/subscriptions/subscriptions.modul
     PrismaModule,
     CacheModule,
     QueueModule,
+    MemoryModule,
 
     // ─── Feature Modules ───────────────────────────────────────────────────────
     AuthModule,
