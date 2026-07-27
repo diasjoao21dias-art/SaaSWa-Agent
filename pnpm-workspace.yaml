@@ -70,8 +70,14 @@ autoInstallPeers: false
 
 onlyBuiltDependencies:
   - '@swc/core'
+  - '@nestjs/core'
+  - '@prisma/client'
+  - '@prisma/engines'
+  - '@scarf/scarf'
   - esbuild
   - msw
+  - msgpackr-extract
+  - prisma
   - unrs-resolver
 
 overrides:

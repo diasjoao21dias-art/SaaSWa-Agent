@@ -1,4 +1,4 @@
-modules = ["nodejs-20", "web", "bash"]
+modules = ["nodejs-20", "web", "bash", "postgresql-16"]
 
 [deployment]
 router = "application"
@@ -21,3 +21,9 @@ timeoutMs = 20000
 
 [nix]
 channel = "stable-25_05"
+
+[userenv]
+
+[userenv.shared]
+APP_PUBLIC_URL = "https://45cac0a9-7ce7-4ea7-9b97-f34919897915-00-33un003drhiwf.picard.replit.dev/api"
+REDIS_PORT = "6379"
