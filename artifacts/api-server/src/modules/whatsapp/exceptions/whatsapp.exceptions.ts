@@ -18,3 +18,29 @@ export class WhatsappInstanceException extends AppException {
     super('WHATSAPP_INSTANCE_ERROR', message, HttpStatus.BAD_GATEWAY);
   }
 }
+
+export class WhatsappNumberNotConnectedException extends AppException {
+  constructor(instanceName: string) {
+    super(
+      'WHATSAPP_NUMBER_NOT_CONNECTED',
+      `WhatsApp instance "${instanceName}" is not connected. Please scan the QR code first.`,
+      HttpStatus.CONFLICT,
+    );
+  }
+}
+
+export class WhatsappInvalidMessageException extends AppException {
+  constructor(reason: string) {
+    super('WHATSAPP_INVALID_MESSAGE', reason, HttpStatus.UNPROCESSABLE_ENTITY);
+  }
+}
+
+export class WhatsappSendFailedException extends AppException {
+  constructor(instanceName: string, cause: string) {
+    super(
+      'WHATSAPP_SEND_FAILED',
+      `Failed to send message via "${instanceName}": ${cause}`,
+      HttpStatus.BAD_GATEWAY,
+    );
+  }
+}

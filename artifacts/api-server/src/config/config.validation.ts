@@ -8,6 +8,7 @@ export const configValidationSchema = Joi.object({
   PORT: Joi.number().port().default(3000),
   APP_GLOBAL_PREFIX: Joi.string().default('api'),
   APP_ALLOWED_ORIGINS: Joi.string().default('*'),
+  APP_PUBLIC_URL: Joi.string().uri().allow('').optional(),
 
   // ─── Database ─────────────────────────────────────────────────────────────────
   DATABASE_URL: Joi.string().uri().required(),

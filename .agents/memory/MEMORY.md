@@ -1,1 +1,2 @@
 - [Auth system design](auth-system.md) — global guards in AppModule; @Public() must be checked in TenantGuard/RolesGuard when registered globally
+- [Evolution API integration](evolution-integration.md) — EvolutionApiService is pure HTTP, no business logic; WhatsappService orchestrates; reconnect via BullMQ
