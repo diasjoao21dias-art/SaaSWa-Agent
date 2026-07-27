@@ -1,0 +1,8 @@
+import { registerAs } from '@nestjs/config';
+
+export default registerAs('app', () => ({
+  env: process.env['NODE_ENV'] ?? 'development',
+  port: parseInt(process.env['PORT'] ?? '3000', 10),
+  globalPrefix: process.env['APP_GLOBAL_PREFIX'] ?? 'api',
+  allowedOrigins: process.env['APP_ALLOWED_ORIGINS'] ?? '*',
+}));
