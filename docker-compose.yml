@@ -1,0 +1,255 @@
+# =============================================================================
+# docker-compose.yml — WhatsApp AI SaaS Platform
+#
+# Serviços:
+#   postgres   — Banco de dados PostgreSQL com pgvector
+#   redis      — Cache + filas BullMQ
+#   api        — NestJS API (HTTP + BullMQ consumers)
+#   worker     — Réplica dedicada para processar filas BullMQ
+#   nginx      — Reverse proxy + frontend React estático
+#   evolution  — Evolution API (gateway WhatsApp via Baileys)
+#
+# Uso:
+#   cp .env.example .env          # configure as variáveis
+#   docker compose up -d          # sobe tudo em background
+#   docker compose logs -f api    # acompanha logs do backend
+# =============================================================================
+
+services:
+
+  # ── PostgreSQL ──────────────────────────────────────────────────────────────
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: whatsapp_saas_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB:       ${POSTGRES_DB}
+      POSTGRES_USER:     ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      # Dados persistentes do banco
+      - postgres_data:/var/lib/postgresql/data
+      # Script de inicialização: habilita uuid-ossp, pgcrypto, vector
+      - ./docker/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    networks:
+      - app_network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+  # ── Redis ───────────────────────────────────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    container_name: whatsapp_saas_redis
+    restart: unless-stopped
+    command: >
+      redis-server
+        --requirepass ${REDIS_PASSWORD}
+        --appendonly yes
+        --appendfsync everysec
+        --maxmemory 512mb
+        --maxmemory-policy allkeys-lru
+    volumes:
+      # Persistência AOF — garante que jobs BullMQ não se percam em restart
+      - redis_data:/data
+    networks:
+      - app_network
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  # ── NestJS API ──────────────────────────────────────────────────────────────
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+    container_name: whatsapp_saas_api
+    restart: unless-stopped
+    environment:
+      NODE_ENV:                  production
+      PORT:                      3000
+      DATABASE_URL:              ${DATABASE_URL}
+      REDIS_HOST:                ${REDIS_HOST}
+      REDIS_PORT:                ${REDIS_PORT}
+      REDIS_PASSWORD:            ${REDIS_PASSWORD}
+      JWT_ACCESS_SECRET:         ${JWT_ACCESS_SECRET}
+      JWT_REFRESH_SECRET:        ${JWT_REFRESH_SECRET}
+      OPENAI_API_KEY:            ${OPENAI_API_KEY}
+      EVOLUTION_API_BASE_URL:    ${EVOLUTION_API_BASE_URL}
+      EVOLUTION_API_KEY:         ${EVOLUTION_API_KEY}
+      EVOLUTION_WEBHOOK_SECRET:  ${EVOLUTION_WEBHOOK_SECRET}
+      APP_PUBLIC_URL:            ${APP_PUBLIC_URL}
+    volumes:
+      # Volume para uploads de arquivos locais (knowledge base, avatares)
+      - uploads_data:/app/uploads
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - app_network
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:3000/api/v1/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    # Não expõe portas externamente — o nginx faz o proxy
+    expose:
+      - "3000"
+
+  # ── BullMQ Worker ───────────────────────────────────────────────────────────
+  # Réplica dedicada ao processamento de filas (sem tráfego HTTP externo).
+  # Usa a mesma imagem do "api" — o NestJS registra os @Processor consumers
+  # automaticamente em qualquer instância do AppModule.
+  #
+  # Benefício: o container "api" fica exclusivo para requisições HTTP,
+  # enquanto o "worker" processa: ai-response, whatsapp-outbound,
+  # document-processing, memory-cleanup, webhook-inbound.
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+    container_name: whatsapp_saas_worker
+    restart: unless-stopped
+    environment:
+      NODE_ENV:                  production
+      PORT:                      3001
+      DATABASE_URL:              ${DATABASE_URL}
+      REDIS_HOST:                ${REDIS_HOST}
+      REDIS_PORT:                ${REDIS_PORT}
+      REDIS_PASSWORD:            ${REDIS_PASSWORD}
+      JWT_ACCESS_SECRET:         ${JWT_ACCESS_SECRET}
+      JWT_REFRESH_SECRET:        ${JWT_REFRESH_SECRET}
+      OPENAI_API_KEY:            ${OPENAI_API_KEY}
+      EVOLUTION_API_BASE_URL:    ${EVOLUTION_API_BASE_URL}
+      EVOLUTION_API_KEY:         ${EVOLUTION_API_KEY}
+      EVOLUTION_WEBHOOK_SECRET:  ${EVOLUTION_WEBHOOK_SECRET}
+      APP_PUBLIC_URL:            ${APP_PUBLIC_URL}
+    volumes:
+      - uploads_data:/app/uploads
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - app_network
+    # Worker não é exposto externamente
+    expose:
+      - "3001"
+
+  # ── Nginx (reverse proxy + frontend) ────────────────────────────────────────
+  nginx:
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend
+    container_name: whatsapp_saas_nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"       # HTTP
+      # - "443:443"   # HTTPS — habilite e configure certificado SSL para produção
+    depends_on:
+      api:
+        condition: service_healthy
+    networks:
+      - app_network
+    volumes:
+      # Logs de acesso e erro do nginx
+      - nginx_logs:/var/log/nginx
+
+  # ── Evolution API (WhatsApp Gateway) ────────────────────────────────────────
+  # Gerencia as sessões WhatsApp via Baileys (multi-device).
+  # O backend registra as instâncias e configura os webhooks automaticamente.
+  evolution:
+    image: atendai/evolution-api:v2.2.3
+    container_name: whatsapp_saas_evolution
+    restart: unless-stopped
+    environment:
+      # URL pública que o WhatsApp/Meta usa para entregar mensagens
+      SERVER_URL:                      ${APP_PUBLIC_URL}
+
+      # Autenticação da API
+      AUTHENTICATION_TYPE:             apikey
+      AUTHENTICATION_API_KEY:          ${EVOLUTION_API_KEY}
+
+      # Banco de dados para persistência de sessões e instâncias
+      DATABASE_ENABLED:                "true"
+      DATABASE_PROVIDER:               postgresql
+      DATABASE_CONNECTION_URI:         ${DATABASE_URL}
+      DATABASE_CONNECTION_CLIENT_NAME: evolution_api
+
+      # Redis para cache de sessões (mesma instância do BullMQ)
+      CACHE_REDIS_ENABLED:             "true"
+      CACHE_REDIS_URI:                 redis://:${REDIS_PASSWORD}@redis:6379/1
+      CACHE_REDIS_PREFIX_KEY:          evolution
+
+      # Logs
+      LOG_LEVEL:                       ERROR
+      LOG_COLOR:                       "false"
+
+      # Configuração de webhook (recebimento de eventos do WhatsApp)
+      WEBHOOK_GLOBAL_ENABLED:          "false"   # webhooks configurados por instância
+      WEBHOOK_GLOBAL_WEBHOOK_BY_EVENTS: "false"
+
+      # QR Code
+      QRCODE_LIMIT:                    30
+      QRCODE_COLOR:                    "#000000"
+    volumes:
+      # Sessões e instâncias do WhatsApp (mídia, auth)
+      - evolution_data:/evolution/instances
+    networks:
+      - app_network
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8080 || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    # Não exposto diretamente — acessível via nginx em /evolution/
+    expose:
+      - "8080"
+
+# =============================================================================
+# Volumes — dados persistentes fora dos containers
+# =============================================================================
+volumes:
+  postgres_data:
+    name: whatsapp_saas_postgres_data
+    driver: local
+
+  redis_data:
+    name: whatsapp_saas_redis_data
+    driver: local
+
+  evolution_data:
+    name: whatsapp_saas_evolution_data
+    driver: local
+
+  uploads_data:
+    name: whatsapp_saas_uploads_data
+    driver: local
+
+  nginx_logs:
+    name: whatsapp_saas_nginx_logs
+    driver: local
+
+# =============================================================================
+# Rede — comunicação interna isolada
+# =============================================================================
+networks:
+  app_network:
+    name: whatsapp_saas_network
+    driver: bridge
