@@ -13,6 +13,7 @@ import { AiResponseConsumer } from './consumers/ai-response.consumer';
 import { WhatsappOutboundConsumer } from './consumers/whatsapp-outbound.consumer';
 import { WebhookInboundConsumer } from './consumers/webhook-inbound.consumer';
 import { EvolutionApiModule } from '../evolution/evolution-api.module';
+import { AiModule } from '../modules/ai/ai.module';
 
 @Module({
   imports: [
@@ -40,8 +41,10 @@ import { EvolutionApiModule } from '../evolution/evolution-api.module';
       { name: QUEUE_WHATSAPP_OUTBOUND },
       { name: QUEUE_WEBHOOK_INBOUND },
     ),
-    // EvolutionApiModule fornece EvolutionApiService para o WhatsappOutboundConsumer
+    // Infraestrutura de Evolution API (HTTP para WhatsApp)
     EvolutionApiModule,
+    // Módulo de IA — fornece AiService para o AiResponseConsumer
+    AiModule,
   ],
   providers: [
     AiResponseProducer,

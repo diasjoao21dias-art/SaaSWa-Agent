@@ -1,143 +1,170 @@
+// =============================================================================
+// AiResponseConsumer — Consumer de Fila de Respostas de IA
+//
+// RESPONSABILIDADE: Orquestrar o fluxo completo de resposta automática:
+//   1. Carregar contexto da conversa do banco
+//   2. Chamar AiService.generate() para obter a resposta
+//   3. Salvar a mensagem de resposta no banco
+//   4. Enfileirar o envio outbound (WhatsApp)
+//
+// Este consumer é intencionalmente fino (thin consumer).
+// Toda a lógica de IA (montagem de prompt, chamada OpenAI) vive em AiService.
+// =============================================================================
+
 import { Processor, WorkerHost, OnWorkerEvent } from '@nestjs/bullmq';
 import { Job } from 'bullmq';
 import { Logger, Inject } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
+import { AiService } from '../../modules/ai/ai.service';
 import { WhatsappOutboundProducer } from '../producers/whatsapp-outbound.producer';
 import {
   QUEUE_AI_RESPONSE,
   JOB_SEND_AI_RESPONSE,
 } from '../queue.constants';
 import type { AiResponseJobData } from '../producers/ai-response.producer';
-import OpenAI from 'openai';
-import { ConfigService } from '@nestjs/config';
-
-const CONTEXT_WINDOW_SIZE = 10;
 
 @Processor(QUEUE_AI_RESPONSE, { concurrency: 5 })
 export class AiResponseConsumer extends WorkerHost {
   private readonly logger = new Logger(AiResponseConsumer.name);
-  private readonly openai: OpenAI;
 
   constructor(
     @Inject(PrismaService) private readonly prisma: PrismaService,
+    @Inject(AiService) private readonly aiService: AiService,
     @Inject(WhatsappOutboundProducer)
     private readonly outboundProducer: WhatsappOutboundProducer,
-    private readonly configService: ConfigService,
   ) {
     super();
-    this.openai = new OpenAI({
-      apiKey: this.configService.get<string>('openai.apiKey'),
-      organization: this.configService.get<string | undefined>('openai.organization'),
-      timeout: this.configService.get<number>('openai.timeoutMs', 30000),
-    });
   }
 
   async process(job: Job<AiResponseJobData>): Promise<void> {
     if (job.name !== JOB_SEND_AI_RESPONSE) return;
 
-    const { conversationId, agentId, whatsappNumberInstanceName, messageId } = job.data;
+    const {
+      conversationId,
+      agentId,
+      tenantId,
+      customerPhone,
+      whatsappNumberInstanceName,
+      messageId,
+    } = job.data;
 
-    // Load agent config
-    const agent = await this.prisma.aiAgent.findUnique({
+    // ── 1. Carregar configuração do agente ──────────────────────────────────────
+    // Carregamos o agente aqui para obter: status, contextWindowSize, tenantId do agente.
+    const agent = await this.prisma.aiAgent.findFirst({
       where: { id: agentId, deletedAt: null },
-      include: { prompt: true },
+      select: {
+        id: true,
+        status: true,
+        contextWindowSize: true,
+        fallbackMessage: true,
+        name: true,
+      },
     });
 
     if (!agent || agent.status !== 'ACTIVE') {
-      this.logger.warn(`Agent ${agentId} not found or inactive. Skipping.`);
+      this.logger.warn(`Agent ${agentId} not found or inactive — skipping AI response`);
       return;
     }
 
-    // Load recent conversation history
+    // ── 2. Carregar histórico recente da conversa ───────────────────────────────
+    // Carregamos contextWindowSize mensagens em ordem decrescente,
+    // depois invertemos para ordem cronológica (mais antiga → mais recente).
     const recentMessages = await this.prisma.message.findMany({
-      where: { conversationId, deletedAt: null, role: { in: ['USER', 'ASSISTANT'] } },
+      where: {
+        conversationId,
+        deletedAt: null,
+        role: { in: ['USER', 'ASSISTANT'] },
+        content: { not: null },
+      },
       orderBy: { createdAt: 'desc' },
-      take: CONTEXT_WINDOW_SIZE,
+      take: agent.contextWindowSize,
       select: { role: true, content: true },
     });
 
-    // Reverse to chronological order
-    const history = recentMessages.reverse();
+    const conversationHistory = recentMessages
+      .reverse()
+      .map((m) => ({ role: m.role as 'USER' | 'ASSISTANT', content: m.content }));
 
-    // Build OpenAI messages array
-    const openAiMessages: OpenAI.Chat.ChatCompletionMessageParam[] = [];
-
-    if (agent.prompt?.content) {
-      openAiMessages.push({ role: 'system', content: agent.prompt.content });
-    }
-
-    for (const msg of history) {
-      openAiMessages.push({
-        role: msg.role === 'USER' ? 'user' : 'assistant',
-        content: msg.content ?? '',
-      });
-    }
-
-    const startTime = Date.now();
-
-    // Call OpenAI
-    const completion = await this.openai.chat.completions.create({
-      model: agent.model,
-      messages: openAiMessages,
-      temperature: agent.temperature,
-      max_tokens: agent.maxTokens,
-      top_p: agent.topP,
-      presence_penalty: agent.presencePenalty,
-      frequency_penalty: agent.frequencyPenalty,
+    // ── 3. Carregar contexto do cliente (nome para personalização) ──────────────
+    const conversation = await this.prisma.conversation.findUnique({
+      where: { id: conversationId },
+      select: {
+        customer: { select: { name: true } },
+        tenant: { select: { name: true } },
+      },
     });
 
-    const processingTimeMs = Date.now() - startTime;
-    const choice = completion.choices[0];
-    const responseText = choice?.message?.content ?? agent.fallbackMessage ?? 'Desculpe, não consegui processar sua mensagem.';
-    const tokensInput = completion.usage?.prompt_tokens ?? 0;
-    const tokensOutput = completion.usage?.completion_tokens ?? 0;
+    // ── 4. Gerar resposta via AiService ────────────────────────────────────────
+    // AiService.generate() encapsula: cache de agente, montagem de prompt,
+    // chamada Responses API, aplicação de fallback.
+    const result = await this.aiService.generate({
+      agentId,
+      conversationHistory,
+      customerName: conversation?.customer?.name ?? undefined,
+      tenantName: conversation?.tenant?.name ?? undefined,
+    });
 
-    // Save assistant response
+    // ── 5. Salvar mensagem de resposta no banco ─────────────────────────────────
     const savedResponse = await this.prisma.message.create({
       data: {
         conversationId,
         role: 'ASSISTANT',
         type: 'TEXT',
-        content: responseText,
+        content: result.text,
         status: 'SENT',
-        tokensInput,
-        tokensOutput,
-        processingTimeMs,
-        aiModel: agent.model,
+        tokensInput: result.inputTokens,
+        tokensOutput: result.outputTokens,
+        processingTimeMs: result.latencyMs,
+        aiModel: result.model,
         sentAt: new Date(),
+        metadata: {
+          responseId: result.responseId,  // ID da resposta na OpenAI (rastreabilidade)
+          usedFallback: result.usedFallback,
+        },
       },
     });
 
-    // Update conversation lastMessageAt
+    // ── 6. Atualizar timestamps da conversa ─────────────────────────────────────
     await this.prisma.conversation.update({
       where: { id: conversationId },
       data: { lastMessageAt: new Date() },
     });
 
-    // Enqueue outbound message
+    // ── 7. Marcar mensagem original como processada ─────────────────────────────
+    await this.prisma.message.update({
+      where: { id: messageId },
+      data: {
+        metadata: {
+          processed: true,
+          processingMs: result.latencyMs,
+          aiResponseMessageId: savedResponse.id,
+        },
+      },
+    });
+
+    // ── 8. Enfileirar envio outbound para o WhatsApp ────────────────────────────
     await this.outboundProducer.enqueue({
-      tenantId: job.data.tenantId,
+      tenantId,
       conversationId,
       messageId: savedResponse.id,
       instanceName: whatsappNumberInstanceName,
-      recipientPhone: job.data.customerPhone,
-      content: responseText,
+      recipientPhone: customerPhone,
       messageType: 'text',
+      content: result.text,
     });
 
     this.logger.debug(
-      `AI response generated for conversation ${conversationId} — ${processingTimeMs}ms, ${tokensInput}in/${tokensOutput}out tokens`,
+      `AI response for conversation ${conversationId}: ` +
+      `${result.latencyMs}ms, ${result.inputTokens}in/${result.outputTokens}out tokens` +
+      (result.usedFallback ? ' [FALLBACK]' : ''),
     );
-
-    // Mark original message as processed (update reference)
-    await this.prisma.message.update({
-      where: { id: messageId },
-      data: { metadata: { processed: true, processingMs: processingTimeMs } },
-    });
   }
 
   @OnWorkerEvent('failed')
   onFailed(job: Job, error: Error): void {
-    this.logger.error(`AI job ${job.id} failed: ${error.message}`, error.stack);
+    this.logger.error(
+      `AI job ${job.id} failed after ${job.attemptsMade} attempts: ${error.message}`,
+      error.stack,
+    );
   }
 }

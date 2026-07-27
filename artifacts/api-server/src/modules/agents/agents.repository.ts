@@ -17,6 +17,17 @@ export class AgentsRepository {
     });
   }
 
+  /**
+   * Busca um agente pelo ID sem filtro de tenant.
+   * Usado internamente pela fila de respostas de IA (consumer não tem contexto de tenant).
+   */
+  async findByIdGlobal(id: string) {
+    return this.prisma.aiAgent.findFirst({
+      where: { id, deletedAt: null },
+      include: { prompt: true, knowledgeBase: { select: { id: true, name: true, type: true } } },
+    });
+  }
+
   async findAll(tenantId: string, page: number, limit: number) {
     const { skip, take } = getPaginationParams(page, limit);
     const [data, total] = await Promise.all([
