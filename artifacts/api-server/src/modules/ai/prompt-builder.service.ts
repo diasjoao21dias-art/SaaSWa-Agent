@@ -53,6 +53,11 @@ export interface AgentPromptConfig {
   inactivityTimeout: number;
   /** Contexto adicional da empresa (opcional) */
   tenantName?: string;
+  /**
+   * Contexto recuperado da base de conhecimento via RAG.
+   * Quando presente, instrui o modelo a usar APENAS esse conteúdo para responder.
+   */
+  knowledgeContext?: string;
 }
 
 // ─── Contexto de execução (vem da conversa, não do agente) ────────────────────
@@ -97,6 +102,11 @@ export class PromptBuilderService {
 
     const contextSection = this.buildContextSection(config, context);
     if (contextSection) sections.push(contextSection);
+
+    // ── RAG: injeta base de conhecimento quando disponível ───────────────────
+    if (config.knowledgeContext?.trim()) {
+      sections.push(this.buildKnowledgeSection(config.knowledgeContext));
+    }
 
     if (config.humanHandoffEnabled && config.handoffKeywords.length > 0) {
       sections.push(this.buildHandoffSection(config.handoffKeywords));
@@ -200,7 +210,22 @@ export class PromptBuilderService {
   }
 
   /**
-   * Seção 6 — TRANSFERÊNCIA PARA HUMANO
+   * Seção 6 — BASE DE CONHECIMENTO (RAG)
+   * Injeta os chunks recuperados por busca vetorial.
+   * O modelo é instruído a responder APENAS com base nesse conteúdo.
+   */
+  private buildKnowledgeSection(context: string): string {
+    return [
+      `# Base de Conhecimento`,
+      `Use APENAS as informações abaixo para responder. Se a resposta não estiver aqui, diga honestamente que não tem essa informação.`,
+      `Nunca invente ou extrapole conteúdo que não está nas fontes abaixo.`,
+      ``,
+      context,
+    ].join('\n');
+  }
+
+  /**
+   * Seção 7 — TRANSFERÊNCIA PARA HUMANO
    * Injeta instruções claras sobre quando e como passar a conversa
    * para um atendente humano.
    */
@@ -218,7 +243,7 @@ export class PromptBuilderService {
   }
 
   /**
-   * Seção 7 — MENSAGEM DE FALLBACK
+   * Seção 8 — MENSAGEM DE FALLBACK
    * O que dizer quando o modelo não tem informação suficiente para responder.
    */
   private buildFallbackSection(fallback: string): string {
@@ -231,7 +256,7 @@ export class PromptBuilderService {
   }
 
   /**
-   * Seção 8 — REGRAS GERAIS
+   * Seção 9 — REGRAS GERAIS
    * Comportamentos universais que todo agente deve seguir.
    */
   private buildGeneralRulesSection(config: AgentPromptConfig): string {

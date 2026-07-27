@@ -11,7 +11,7 @@ generator client {
 datasource db {
   provider   = "postgresql"
   url        = env("DATABASE_URL")
-  extensions = [uuidOssp(map: "uuid-ossp"), pgcrypto]
+  extensions = [uuidOssp(map: "uuid-ossp"), pgcrypto, vector]
 }
 
 // =============================================================================
@@ -597,7 +597,7 @@ model KnowledgeDocument {
   question        String?                 @db.Text     // Para tipo FAQ
   answer          String?                 @db.Text     // Para tipo FAQ
   sourceUrl       String?                 @map("source_url") @db.VarChar(2000)
-  embedding       Json?                   @db.JsonB    // Vetor de embedding (pgvector futuro)
+  embedding       Unsupported("vector(1536)")?            // Vetor de embedding (pgvector)
   chunkIndex      Int                     @default(0) @map("chunk_index")
   tokenCount      Int                     @default(0) @map("token_count")
   status          KnowledgeDocumentStatus @default(PENDING)

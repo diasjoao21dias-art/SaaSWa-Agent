@@ -20,11 +20,12 @@
 //   ✓ Cache de configuração de agente
 // =============================================================================
 
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, Optional } from '@nestjs/common';
 import { AgentsRepository } from '../agents/agents.repository';
 import { CacheService } from '../../cache/cache.service';
 import { OpenAiResponsesService } from '../../openai/openai-responses.service';
 import { PromptBuilderService } from './prompt-builder.service';
+import { VectorSearchService } from '../knowledge/services/vector-search.service';
 import { NotFoundException } from '../../common/exceptions/not-found.exception';
 import { AgentNotFoundException } from '../agents/exceptions/agent.exceptions';
 import { CACHE_KEY_AGENT, CACHE_TTL_MEDIUM } from '../../common/constants';
@@ -43,6 +44,10 @@ export interface GenerateResponseRequest {
   customerName?: string;
   /** Nome da empresa (tenant) */
   tenantName?: string;
+  /** ID da base de conhecimento vinculada ao agente (RAG) */
+  knowledgeBaseId?: string | null;
+  /** Modelo de embedding da base de conhecimento */
+  embeddingModel?: string;
 }
 
 export interface GenerateResponseResult extends CreateResponseResult {
@@ -59,6 +64,7 @@ export class AiService {
     private readonly cache: CacheService,
     private readonly openai: OpenAiResponsesService,
     private readonly promptBuilder: PromptBuilderService,
+    @Optional() private readonly vectorSearch: VectorSearchService | null,
   ) {}
 
   // ─── Geração automática (chamada pelo consumer de fila) ───────────────────────
@@ -81,7 +87,7 @@ export class AiService {
   async generate(
     request: GenerateResponseRequest,
   ): Promise<GenerateResponseResult> {
-    const { agentId, conversationHistory, customerName, tenantName } = request;
+    const { agentId, conversationHistory, customerName, tenantName, knowledgeBaseId, embeddingModel } = request;
 
     // ── 1. Carregar agente ──────────────────────────────────────────────────────
     const agent = await this.loadAgent(agentId);
@@ -90,7 +96,36 @@ export class AiService {
       throw new AgentNotFoundException(agentId);
     }
 
-    // ── 2. Montar system prompt ─────────────────────────────────────────────────
+    // ── 2. Recuperar contexto de conhecimento via RAG (se KB vinculada) ────────
+    let knowledgeContext: string | undefined;
+
+    if (knowledgeBaseId && this.vectorSearch) {
+      // Usa a última mensagem do usuário como query para busca vetorial
+      const lastUserMsg = conversationHistory
+        .filter((m) => m.role === 'USER' && m.content?.trim())
+        .at(-1);
+
+      if (lastUserMsg?.content) {
+        try {
+          const kb = await this.vectorSearch.getKnowledgeContext(
+            lastUserMsg.content,
+            knowledgeBaseId,
+            embeddingModel,
+          );
+          if (kb.hasRelevantContext) {
+            knowledgeContext = kb.context;
+            this.logger.debug(
+              `RAG: ${kb.sources.length} chunks retrieved for agent=${agent.name}`,
+            );
+          }
+        } catch (err) {
+          // RAG failure deve degradar graciosamente — nunca bloqueia a resposta
+          this.logger.warn(`RAG retrieval failed (non-fatal): ${(err as Error).message}`);
+        }
+      }
+    }
+
+    // ── 3. Montar system prompt ─────────────────────────────────────────────────
     const systemPrompt = this.promptBuilder.build(
       {
         name: agent.name,
@@ -103,6 +138,7 @@ export class AiService {
         handoffKeywords: agent.handoffKeywords,
         inactivityTimeout: agent.inactivityTimeout,
         tenantName,
+        knowledgeContext,
       },
       {
         customerName,
@@ -114,7 +150,7 @@ export class AiService {
       },
     );
 
-    // ── 3. Formatar histórico para Responses API ────────────────────────────────
+    // ── 4. Formatar histórico para Responses API ────────────────────────────────
     // Responses API aceita apenas role 'user' | 'assistant' (lowercase)
     // A mensagem atual do usuário já está no histórico
     const inputMessages: ResponseInputMessage[] = conversationHistory

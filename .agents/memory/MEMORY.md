@@ -2,3 +2,5 @@
 - [Evolution API integration](evolution-integration.md) — EvolutionApiService is pure HTTP, no business logic; WhatsappService orchestrates; reconnect via BullMQ
 - [AI service design](ai-service.md) — OpenAI Responses API (not Chat Completions); PromptBuilderService mounts system prompt automatically; AiAgent.description = personality
 - [AI Memory Architecture](ai-memory-architecture.md) — Redis hot context (List, TTL 2h) + Postgres fallback; nightly BullMQ cleanup for CLOSED convs; never block on Redis failures
+- [RAG Knowledge System](rag-knowledge-system.md) — pgvector vector(1536) column; BullMQ async processing; VectorSearchService exported by KnowledgeModule, imported by AiModule
+- [Dev server startup](dev-server-startup.md) — use tsx (not swc-node/esm-register) for Node.js v20; server fails at config validation without env vars (expected)

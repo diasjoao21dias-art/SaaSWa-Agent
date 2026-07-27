@@ -59,7 +59,7 @@ export class AiResponseConsumer extends WorkerHost {
     } = job.data;
 
     // ── 1. Carregar configuração do agente ──────────────────────────────────────
-    // Carregamos o agente aqui para obter: status, contextWindowSize, tenantId do agente.
+    // Carregamos o agente aqui para obter: status, contextWindowSize, knowledgeBase.
     const agent = await this.prisma.aiAgent.findFirst({
       where: { id: agentId, deletedAt: null },
       select: {
@@ -68,6 +68,10 @@ export class AiResponseConsumer extends WorkerHost {
         contextWindowSize: true,
         fallbackMessage: true,
         name: true,
+        knowledgeBaseId: true,
+        knowledgeBase: {
+          select: { embeddingModel: true },
+        },
       },
     });
 
@@ -94,14 +98,16 @@ export class AiResponseConsumer extends WorkerHost {
       },
     });
 
-    // ── 4. Gerar resposta via AiService ────────────────────────────────────────
-    // AiService.generate() encapsula: cache de agente, montagem de prompt,
-    // chamada Responses API, aplicação de fallback.
+    // ── 4. Gerar resposta via AiService (com RAG se KB vinculada) ─────────────
+    // AiService.generate() encapsula: cache de agente, busca vetorial (RAG),
+    // montagem de prompt, chamada Responses API, aplicação de fallback.
     const result = await this.aiService.generate({
       agentId,
       conversationHistory,
       customerName: conversation?.customer?.name ?? undefined,
       tenantName: conversation?.tenant?.name ?? undefined,
+      knowledgeBaseId: agent.knowledgeBaseId ?? undefined,
+      embeddingModel: agent.knowledgeBase?.embeddingModel ?? 'text-embedding-3-small',
     });
 
     // ── 5. Salvar mensagem de resposta no banco ─────────────────────────────────
