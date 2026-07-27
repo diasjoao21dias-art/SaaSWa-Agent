@@ -28,6 +28,14 @@ export class TenantsService {
     const passwordHash = await AuthService.hashPassword(dto.ownerPassword);
     const tenant = await this.repo.create(dto, passwordHash);
 
+    // Best-effort: seed system roles (Administrador / Funcionário / Cliente)
+    // Silently skips if the permissions table hasn't been seeded yet.
+    await this.repo.createSystemRoles(tenant.id).catch((err: Error) =>
+      this.logger.warn(
+        `System roles not created for tenant ${tenant.id}: ${err.message}`,
+      ),
+    );
+
     this.logger.log(`Tenant created: ${tenant.slug} (${tenant.id})`);
     return tenant;
   }

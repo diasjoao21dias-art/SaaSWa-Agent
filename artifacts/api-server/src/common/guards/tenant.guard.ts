@@ -10,6 +10,7 @@ import { Reflector } from '@nestjs/core';
 import { PrismaService } from '../../database/prisma.service';
 import { CacheService } from '../../cache/cache.service';
 import {
+  IS_PUBLIC_KEY,
   SKIP_TENANT_GUARD_KEY,
   CACHE_KEY_TENANT,
   CACHE_TTL_MEDIUM,
@@ -25,6 +26,13 @@ export class TenantGuard implements CanActivate {
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
+    // Public routes are unauthenticated — no tenant context available
+    const isPublic = this.reflector.getAllAndOverride<boolean>(IS_PUBLIC_KEY, [
+      context.getHandler(),
+      context.getClass(),
+    ]);
+    if (isPublic) return true;
+
     const skip = this.reflector.getAllAndOverride<boolean>(
       SKIP_TENANT_GUARD_KEY,
       [context.getHandler(), context.getClass()],

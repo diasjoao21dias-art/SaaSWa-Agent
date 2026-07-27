@@ -12,8 +12,12 @@ import {
   InvalidCredentialsException,
   AccountInactiveException,
   TokenRevokedException,
+  PasswordResetTokenInvalidException,
 } from './exceptions/auth.exceptions';
-import { CACHE_KEY_REFRESH_TOKEN } from '../../common/constants';
+import {
+  CACHE_KEY_REFRESH_TOKEN,
+  CACHE_KEY_PASSWORD_RESET,
+} from '../../common/constants';
 import type { JwtPayload, RefreshTokenPayload } from './interfaces/jwt-payload.interface';
 import type { LoginDto } from './dto/login.dto';
 import type { AuthResponseDto } from './dto/auth-response.dto';
@@ -203,6 +207,66 @@ export class AuthService {
         tenantId: claims.tenantId,
       },
     };
+  }
+
+  // ─── Forgot password ──────────────────────────────────────────────────────────
+  /**
+   * Generates a one-time password-reset token and stores it in Redis + DB.
+   * Always resolves successfully — never leaks whether the email exists.
+   * TODO: integrate an email service to deliver the token.
+   */
+  async forgotPassword(email: string): Promise<void> {
+    const user = await this.authRepo.findUserByEmail(email);
+    if (!user || user.status !== 'ACTIVE') {
+      // Silent — do not reveal whether the account exists
+      return;
+    }
+
+    // Revoke any outstanding reset tokens for this user
+    await this.authRepo.revokeUserPasswordResetTokens(user.id);
+
+    const token = uuidv4();
+    const ttlSeconds = 15 * 60; // 15 minutes
+    const expiresAt = new Date(Date.now() + ttlSeconds * 1000);
+
+    await this.authRepo.savePasswordResetToken(user.id, user.tenantId, token, expiresAt);
+
+    // Fast-path cache so resetPassword doesn't need a DB round-trip
+    const cacheKey = `${CACHE_KEY_PASSWORD_RESET}${token}`;
+    await this.cacheService.set(cacheKey, user.id, ttlSeconds);
+
+    // TODO: send email containing the reset link/token
+    this.logger.log(`Password reset token issued for user ${user.id}`);
+  }
+
+  // ─── Reset password ───────────────────────────────────────────────────────────
+  /**
+   * Consumes the one-time reset token and sets the new password.
+   * All existing sessions are revoked after a successful reset.
+   */
+  async resetPassword(token: string, newPassword: string): Promise<void> {
+    const cacheKey = `${CACHE_KEY_PASSWORD_RESET}${token}`;
+    let userId: string | null = await this.cacheService.get<string>(cacheKey);
+
+    if (!userId) {
+      const record = await this.authRepo.findPasswordResetToken(token);
+      if (!record) throw new PasswordResetTokenInvalidException();
+      userId = record.userId;
+    }
+
+    // Consume token — single-use
+    await Promise.all([
+      this.authRepo.consumePasswordResetToken(token),
+      this.cacheService.del(cacheKey),
+    ]);
+
+    const newHash = await bcrypt.hash(newPassword, BCRYPT_ROUNDS);
+    await this.authRepo.updatePassword(userId, newHash);
+
+    // Invalidate all sessions for security
+    await this.authRepo.revokeAllUserTokens(userId);
+
+    this.logger.log(`Password reset completed for user ${userId}`);
   }
 
   private parseExpiry(expiry: string): number {

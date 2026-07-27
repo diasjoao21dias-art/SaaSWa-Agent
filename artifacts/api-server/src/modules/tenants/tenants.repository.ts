@@ -74,4 +74,84 @@ export class TenantsRepository {
       data: { deletedAt: new Date(), status: 'CANCELED' },
     });
   }
+
+  /**
+   * Creates the three system roles (Administrador, Funcionário, Cliente) for a
+   * newly created tenant and assigns permissions from the global permissions
+   * seed table. Silently skips if the permissions table is empty (e.g. seed not
+   * yet run) — the roles are created without assignments and can be configured later.
+   *
+   * Role → UserRole enum slug mapping:
+   *   admin   → ADMIN  (Administrador)
+   *   agent   → AGENT  (Funcionário)
+   *   viewer  → VIEWER (Cliente)
+   */
+  async createSystemRoles(tenantId: string): Promise<void> {
+    const permissions = await this.prisma.permission.findMany({
+      where: { deletedAt: null },
+      select: { id: true, key: true },
+    });
+
+    const permMap = new Map(permissions.map((p) => ({ key: p.key, id: p.id })).map(({ key, id }) => [key, id]));
+
+    const adminPermIds = permissions
+      .filter((p) => p.key !== 'plans:write')
+      .map((p) => p.id);
+
+    const agentPermKeys = [
+      'conversations:read', 'conversations:write', 'conversations:close',
+      'customers:read', 'customers:write',
+      'knowledge:read',
+      'whatsapp:read',
+    ];
+
+    const viewerPermKeys = [
+      'conversations:read',
+      'customers:read',
+      'reports:read',
+    ];
+
+    const roleDefs = [
+      {
+        name: 'Administrador',
+        slug: 'admin',
+        description: 'Acesso completo — equivale ao papel ADMIN',
+        permIds: adminPermIds,
+      },
+      {
+        name: 'Funcionário',
+        slug: 'agent',
+        description: 'Acesso operacional — equivale ao papel AGENT',
+        permIds: agentPermKeys.map((k) => permMap.get(k)).filter(Boolean) as string[],
+      },
+      {
+        name: 'Cliente',
+        slug: 'viewer',
+        description: 'Acesso somente leitura — equivale ao papel VIEWER',
+        permIds: viewerPermKeys.map((k) => permMap.get(k)).filter(Boolean) as string[],
+      },
+    ];
+
+    for (const def of roleDefs) {
+      const role = await this.prisma.role.create({
+        data: {
+          tenantId,
+          name: def.name,
+          slug: def.slug,
+          description: def.description,
+          isSystem: true,
+        },
+      });
+
+      if (def.permIds.length > 0) {
+        await this.prisma.rolePermission.createMany({
+          data: def.permIds.map((permissionId) => ({
+            roleId: role.id,
+            permissionId,
+          })),
+          skipDuplicates: true,
+        });
+      }
+    }
+  }
 }

@@ -50,3 +50,13 @@ export class TokenExpiredException extends AppException {
     );
   }
 }
+
+export class PasswordResetTokenInvalidException extends AppException {
+  constructor() {
+    super(
+      'PASSWORD_RESET_TOKEN_INVALID',
+      'Password reset token is invalid or has expired. Please request a new one.',
+      HttpStatus.BAD_REQUEST,
+    );
+  }
+}

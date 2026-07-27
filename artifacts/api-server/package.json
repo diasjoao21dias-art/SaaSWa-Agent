@@ -10,7 +10,8 @@
     "prisma:generate": "prisma generate --schema=./prisma/schema.prisma",
     "prisma:migrate:dev": "prisma migrate dev --schema=./prisma/schema.prisma",
     "prisma:migrate:deploy": "prisma migrate deploy --schema=./prisma/schema.prisma",
-    "prisma:studio": "prisma studio --schema=./prisma/schema.prisma"
+    "prisma:studio": "prisma studio --schema=./prisma/schema.prisma",
+    "prisma:seed": "tsx prisma/seed.ts"
   },
   "dependencies": {
     "@nestjs/bullmq": "^10.2.3",
@@ -50,6 +51,7 @@
     "@types/passport-jwt": "^4.0.1",
     "@types/uuid": "^10.0.0",
     "prisma": "^6.9.0",
+    "tsx": "catalog:",
     "typescript": "~5.9.3"
   }
 }

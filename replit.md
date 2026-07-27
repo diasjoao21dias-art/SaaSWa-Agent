@@ -1,24 +1,33 @@
-# [Project name]
+# WhatsApp AI Agent Platform (API Server)
 
-_Replace the heading above with the project's name, and this line with one sentence describing what this app does for users._
+Multi-tenant SaaS backend for managing WhatsApp AI agents, conversations, knowledge bases, and subscriptions.
 
 ## Run & Operate
 
-- `pnpm --filter @workspace/api-server run dev` — run the API server (port 5000)
+- `pnpm --filter @workspace/api-server run dev` — run the API server
 - `pnpm run typecheck` — full typecheck across all packages
 - `pnpm run build` — typecheck + build all packages
-- `pnpm --filter @workspace/api-spec run codegen` — regenerate API hooks and Zod schemas from the OpenAPI spec
-- `pnpm --filter @workspace/db run push` — push DB schema changes (dev only)
-- Required env: `DATABASE_URL` — Postgres connection string
+- `pnpm --filter @workspace/api-server run prisma:seed` — seed global permissions (run once after first migration)
+- `pnpm --filter @workspace/api-server run prisma:migrate:dev` — apply DB migrations (dev)
+- `pnpm --filter @workspace/api-server run prisma:generate` — regenerate Prisma client after schema changes
+
+## Required environment variables
+
+- `DATABASE_URL` — PostgreSQL connection string
+- `JWT_ACCESS_SECRET` — min 32 chars; signs access tokens (15 min)
+- `JWT_REFRESH_SECRET` — min 32 chars; signs refresh tokens (7 days)
+- `REDIS_HOST` / `REDIS_PORT` / `REDIS_PASSWORD` — Redis for cache + queues
+- `OPENAI_API_KEY` — OpenAI completions
+- `EVOLUTION_API_BASE_URL` / `EVOLUTION_API_KEY` / `EVOLUTION_WEBHOOK_SECRET` — WhatsApp gateway
 
 ## Stack
 
-- pnpm workspaces, Node.js 24, TypeScript 5.9
-- API: Express 5
-- DB: PostgreSQL + Drizzle ORM
-- Validation: Zod (`zod/v4`), `drizzle-zod`
-- API codegen: Orval (from OpenAPI spec)
-- Build: esbuild (CJS bundle)
+- pnpm workspaces, Node.js 20, TypeScript 5.9
+- API: NestJS 10 (Express adapter)
+- DB: PostgreSQL + Prisma ORM
+- Cache / Queues: Redis + BullMQ
+- Auth: Passport JWT (access + refresh tokens), bcryptjs, UUID v4
+- Validation: class-validator + class-transformer + Joi (config)
 
 ## Where things live
 

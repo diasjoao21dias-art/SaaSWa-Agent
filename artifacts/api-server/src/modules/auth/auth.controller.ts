@@ -21,6 +21,8 @@ import { LoginDto } from './dto/login.dto';
 import { RefreshTokenDto } from './dto/refresh-token.dto';
 import { AuthResponseDto } from './dto/auth-response.dto';
 import { ChangePasswordDto } from './dto/change-password.dto';
+import { ForgotPasswordDto } from './dto/forgot-password.dto';
+import { ResetPasswordDto } from './dto/reset-password.dto';
 import { Public } from '../../common/decorators/public.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
@@ -99,5 +101,33 @@ export class AuthController {
   @ApiOperation({ summary: 'Get current authenticated user info' })
   getMe(@CurrentUser() user: JwtPayload): JwtPayload {
     return user;
+  }
+
+  // ─── Password Reset ──────────────────────────────────────────────────────────
+
+  @Public()
+  @Post('forgot-password')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({
+    summary: 'Request a password reset',
+    description:
+      'Always returns 204 regardless of whether the email exists (prevents enumeration).',
+  })
+  @ApiResponse({ status: 204, description: 'Reset instructions sent if the account exists' })
+  async forgotPassword(@Body() dto: ForgotPasswordDto): Promise<void> {
+    await this.authService.forgotPassword(dto.email);
+  }
+
+  @Public()
+  @Post('reset-password')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({
+    summary: 'Reset password using a one-time token',
+    description: 'Consumes the token and replaces the password. All sessions are revoked.',
+  })
+  @ApiResponse({ status: 204, description: 'Password changed successfully' })
+  @ApiResponse({ status: 400, description: 'Token invalid or expired' })
+  async resetPassword(@Body() dto: ResetPasswordDto): Promise<void> {
+    await this.authService.resetPassword(dto.token, dto.newPassword);
   }
 }

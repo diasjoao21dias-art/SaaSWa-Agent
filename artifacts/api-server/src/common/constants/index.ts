@@ -38,3 +38,18 @@ export enum UserRole {
   AGENT = 'AGENT',
   VIEWER = 'VIEWER',
 }
+
+/** Human-readable labels for each role (pt-BR) */
+export const ROLE_LABELS: Record<UserRole, string> = {
+  [UserRole.OWNER]: 'Proprietário',
+  [UserRole.ADMIN]: 'Administrador',
+  [UserRole.AGENT]: 'Funcionário',
+  [UserRole.VIEWER]: 'Cliente',
+};
+
+// ─── Decorator metadata keys (additions) ─────────────────────────────────────
+export const PERMISSIONS_KEY = 'permissions';
+
+// ─── Cache key prefixes (additions) ──────────────────────────────────────────
+export const CACHE_KEY_PERMISSIONS = 'perms:';
+export const CACHE_KEY_PASSWORD_RESET = 'pwd_reset:';
