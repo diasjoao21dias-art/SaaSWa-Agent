@@ -1,22 +1,30 @@
 openapi: 3.1.0
 info:
-  # Do not change the title, if the title changes, the import paths will be broken
   title: Api
   version: 0.1.0
-  description: API specification
+  description: SaaS Dashboard API
 servers:
   - url: /api
     description: Base API path
 tags:
   - name: health
-    description: Health operations
+  - name: dashboard
+  - name: conversations
+  - name: clients
+  - name: attendances
+  - name: agents
+  - name: users
+  - name: plans
+  - name: financial
+  - name: integrations
+  - name: reports
+
 paths:
   /healthz:
     get:
       operationId: healthCheck
       tags: [health]
       summary: Health check
-      description: Returns server health status
       responses:
         "200":
           description: Healthy
@@ -24,13 +32,1048 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+
+  # ── Dashboard ──────────────────────────────────────────────
+  /dashboard/stats:
+    get:
+      operationId: getDashboardStats
+      tags: [dashboard]
+      summary: Get dashboard KPI stats
+      responses:
+        "200":
+          description: Stats
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DashboardStats"
+
+  /dashboard/activity:
+    get:
+      operationId: getDashboardActivity
+      tags: [dashboard]
+      summary: Recent activity feed
+      responses:
+        "200":
+          description: Activity list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ActivityItem"
+
+  # ── Conversations ──────────────────────────────────────────
+  /conversations:
+    get:
+      operationId: listConversations
+      tags: [conversations]
+      summary: List conversations
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+        - name: agentId
+          in: query
+          schema:
+            type: ["string", "null"]
+        - name: clientId
+          in: query
+          schema:
+            type: ["string", "null"]
+      responses:
+        "200":
+          description: Conversations
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Conversation"
+    post:
+      operationId: createConversation
+      tags: [conversations]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ConversationInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Conversation"
+
+  /conversations/{id}:
+    get:
+      operationId: getConversation
+      tags: [conversations]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Conversation
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Conversation"
+    patch:
+      operationId: updateConversation
+      tags: [conversations]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ConversationUpdate"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Conversation"
+    delete:
+      operationId: deleteConversation
+      tags: [conversations]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "204":
+          description: Deleted
+
+  # ── Clients ────────────────────────────────────────────────
+  /clients:
+    get:
+      operationId: listClients
+      tags: [clients]
+      summary: List clients
+      responses:
+        "200":
+          description: Clients
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Client"
+    post:
+      operationId: createClient
+      tags: [clients]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ClientInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Client"
+
+  /clients/{id}:
+    get:
+      operationId: getClient
+      tags: [clients]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Client
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Client"
+    patch:
+      operationId: updateClient
+      tags: [clients]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ClientUpdate"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Client"
+    delete:
+      operationId: deleteClient
+      tags: [clients]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "204":
+          description: Deleted
+
+  # ── Attendances ────────────────────────────────────────────
+  /attendances:
+    get:
+      operationId: listAttendances
+      tags: [attendances]
+      summary: List attendances
+      responses:
+        "200":
+          description: Attendances
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Attendance"
+    post:
+      operationId: createAttendance
+      tags: [attendances]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AttendanceInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Attendance"
+
+  /attendances/{id}:
+    patch:
+      operationId: updateAttendance
+      tags: [attendances]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AttendanceUpdate"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Attendance"
+    delete:
+      operationId: deleteAttendance
+      tags: [attendances]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "204":
+          description: Deleted
+
+  # ── Agents ─────────────────────────────────────────────────
+  /agents:
+    get:
+      operationId: listAgents
+      tags: [agents]
+      summary: List agents
+      responses:
+        "200":
+          description: Agents
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Agent"
+    post:
+      operationId: createAgent
+      tags: [agents]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AgentInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Agent"
+
+  /agents/{id}:
+    get:
+      operationId: getAgent
+      tags: [agents]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Agent
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Agent"
+    patch:
+      operationId: updateAgent
+      tags: [agents]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AgentUpdate"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Agent"
+    delete:
+      operationId: deleteAgent
+      tags: [agents]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "204":
+          description: Deleted
+
+  # ── Users ──────────────────────────────────────────────────
+  /users:
+    get:
+      operationId: listUsers
+      tags: [users]
+      summary: List users
+      responses:
+        "200":
+          description: Users
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/User"
+    post:
+      operationId: createUser
+      tags: [users]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UserInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+
+  /users/{id}:
+    patch:
+      operationId: updateUser
+      tags: [users]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UserUpdate"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+    delete:
+      operationId: deleteUser
+      tags: [users]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "204":
+          description: Deleted
+
+  # ── Plans ──────────────────────────────────────────────────
+  /plans:
+    get:
+      operationId: listPlans
+      tags: [plans]
+      summary: List plans
+      responses:
+        "200":
+          description: Plans
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Plan"
+    post:
+      operationId: createPlan
+      tags: [plans]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PlanInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Plan"
+
+  /plans/{id}:
+    patch:
+      operationId: updatePlan
+      tags: [plans]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PlanUpdate"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Plan"
+    delete:
+      operationId: deletePlan
+      tags: [plans]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "204":
+          description: Deleted
+
+  # ── Financial ──────────────────────────────────────────────
+  /financial:
+    get:
+      operationId: listTransactions
+      tags: [financial]
+      summary: List financial transactions
+      responses:
+        "200":
+          description: Transactions
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Transaction"
+    post:
+      operationId: createTransaction
+      tags: [financial]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TransactionInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Transaction"
+
+  /financial/{id}:
+    patch:
+      operationId: updateTransaction
+      tags: [financial]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TransactionUpdate"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Transaction"
+
+  # ── Integrations ───────────────────────────────────────────
+  /integrations:
+    get:
+      operationId: listIntegrations
+      tags: [integrations]
+      summary: List integrations
+      responses:
+        "200":
+          description: Integrations
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Integration"
+    post:
+      operationId: createIntegration
+      tags: [integrations]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/IntegrationInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Integration"
+
+  /integrations/{id}:
+    patch:
+      operationId: updateIntegration
+      tags: [integrations]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/IntegrationUpdate"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Integration"
+    delete:
+      operationId: deleteIntegration
+      tags: [integrations]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "204":
+          description: Deleted
+
+  # ── Reports ────────────────────────────────────────────────
+  /reports/conversations:
+    get:
+      operationId: getConversationReport
+      tags: [reports]
+      summary: Conversation volume trend (last 30 days)
+      responses:
+        "200":
+          description: Conversation trend data
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/TrendPoint"
+
+  /reports/financial:
+    get:
+      operationId: getFinancialReport
+      tags: [reports]
+      summary: MRR / revenue trend (last 12 months)
+      responses:
+        "200":
+          description: Financial trend data
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/TrendPoint"
+
+  /reports/agents:
+    get:
+      operationId: getAgentReport
+      tags: [reports]
+      summary: Agent performance metrics
+      responses:
+        "200":
+          description: Agent metrics
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/AgentMetric"
+
+  /reports/channel-breakdown:
+    get:
+      operationId: getChannelBreakdown
+      tags: [reports]
+      summary: Conversations grouped by channel
+      responses:
+        "200":
+          description: Channel breakdown
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ChannelBreakdownItem"
+
 components:
   schemas:
     HealthStatus:
       type: object
+      required: [status]
       properties:
         status:
           type: string
-      required:
-        - status
 
+    # ── Dashboard ────────────────────────────────────────────
+    DashboardStats:
+      type: object
+      required:
+        - totalConversations
+        - openConversations
+        - totalClients
+        - totalAgents
+        - onlineAgents
+        - totalAttendances
+        - mrr
+        - mrrGrowth
+        - avgResponseTime
+        - satisfactionScore
+      properties:
+        totalConversations: { type: integer }
+        openConversations: { type: integer }
+        totalClients: { type: integer }
+        newClientsThisMonth: { type: integer }
+        totalAgents: { type: integer }
+        onlineAgents: { type: integer }
+        totalAttendances: { type: integer }
+        pendingAttendances: { type: integer }
+        mrr: { type: number }
+        mrrGrowth: { type: number }
+        avgResponseTime: { type: number }
+        satisfactionScore: { type: number }
+
+    ActivityItem:
+      type: object
+      required: [id, type, title, description, createdAt]
+      properties:
+        id: { type: string }
+        type: { type: string }
+        title: { type: string }
+        description: { type: string }
+        createdAt: { type: string }
+        actor: { type: ["string", "null"] }
+
+    # ── Conversation ─────────────────────────────────────────
+    Conversation:
+      type: object
+      required: [id, clientId, status, channel, lastMessage, createdAt, updatedAt]
+      properties:
+        id: { type: string }
+        clientId: { type: string }
+        clientName: { type: ["string", "null"] }
+        agentId: { type: ["string", "null"] }
+        agentName: { type: ["string", "null"] }
+        status: { type: string }
+        channel: { type: string }
+        lastMessage: { type: string }
+        unreadCount: { type: integer }
+        createdAt: { type: string }
+        updatedAt: { type: string }
+
+    ConversationInput:
+      type: object
+      required: [clientId, channel]
+      properties:
+        clientId: { type: string }
+        agentId: { type: ["string", "null"] }
+        channel: { type: string }
+        status: { type: string }
+
+    ConversationUpdate:
+      type: object
+      properties:
+        agentId: { type: ["string", "null"] }
+        status: { type: string }
+
+    # ── Client ────────────────────────────────────────────────
+    Client:
+      type: object
+      required: [id, name, status, createdAt]
+      properties:
+        id: { type: string }
+        name: { type: string }
+        email: { type: ["string", "null"] }
+        phone: { type: ["string", "null"] }
+        company: { type: ["string", "null"] }
+        status: { type: string }
+        totalConversations: { type: integer }
+        createdAt: { type: string }
+
+    ClientInput:
+      type: object
+      required: [name]
+      properties:
+        name: { type: string }
+        email: { type: string }
+        phone: { type: string }
+        company: { type: string }
+        status: { type: string }
+
+    ClientUpdate:
+      type: object
+      properties:
+        name: { type: string }
+        email: { type: ["string", "null"] }
+        phone: { type: ["string", "null"] }
+        company: { type: ["string", "null"] }
+        status: { type: string }
+
+    # ── Attendance ────────────────────────────────────────────
+    Attendance:
+      type: object
+      required: [id, status, createdAt]
+      properties:
+        id: { type: string }
+        conversationId: { type: ["string", "null"] }
+        clientId: { type: ["string", "null"] }
+        clientName: { type: ["string", "null"] }
+        agentId: { type: ["string", "null"] }
+        agentName: { type: ["string", "null"] }
+        status: { type: string }
+        channel: { type: ["string", "null"] }
+        startedAt: { type: ["string", "null"] }
+        endedAt: { type: ["string", "null"] }
+        durationSeconds: { type: ["integer", "null"] }
+        notes: { type: ["string", "null"] }
+        createdAt: { type: string }
+
+    AttendanceInput:
+      type: object
+      required: [status]
+      properties:
+        conversationId: { type: string }
+        clientId: { type: string }
+        agentId: { type: string }
+        channel: { type: string }
+        status: { type: string }
+        notes: { type: string }
+
+    AttendanceUpdate:
+      type: object
+      properties:
+        status: { type: string }
+        agentId: { type: ["string", "null"] }
+        endedAt: { type: ["string", "null"] }
+        durationSeconds: { type: ["integer", "null"] }
+        notes: { type: ["string", "null"] }
+
+    # ── Agent ─────────────────────────────────────────────────
+    Agent:
+      type: object
+      required: [id, name, status, role, createdAt]
+      properties:
+        id: { type: string }
+        name: { type: string }
+        email: { type: string }
+        role: { type: string }
+        status: { type: string }
+        avatar: { type: ["string", "null"] }
+        activeConversations: { type: integer }
+        totalAttendances: { type: integer }
+        satisfactionScore: { type: ["number", "null"] }
+        createdAt: { type: string }
+
+    AgentInput:
+      type: object
+      required: [name, email, role]
+      properties:
+        name: { type: string }
+        email: { type: string }
+        role: { type: string }
+        status: { type: string }
+        avatar: { type: string }
+
+    AgentUpdate:
+      type: object
+      properties:
+        name: { type: string }
+        email: { type: string }
+        role: { type: string }
+        status: { type: string }
+        avatar: { type: ["string", "null"] }
+
+    # ── User ──────────────────────────────────────────────────
+    User:
+      type: object
+      required: [id, name, email, role, status, createdAt]
+      properties:
+        id: { type: string }
+        name: { type: string }
+        email: { type: string }
+        role: { type: string }
+        status: { type: string }
+        avatar: { type: ["string", "null"] }
+        lastLogin: { type: ["string", "null"] }
+        createdAt: { type: string }
+
+    UserInput:
+      type: object
+      required: [name, email, role]
+      properties:
+        name: { type: string }
+        email: { type: string }
+        role: { type: string }
+        status: { type: string }
+        password: { type: string }
+
+    UserUpdate:
+      type: object
+      properties:
+        name: { type: string }
+        email: { type: string }
+        role: { type: string }
+        status: { type: string }
+        avatar: { type: ["string", "null"] }
+
+    # ── Plan ──────────────────────────────────────────────────
+    Plan:
+      type: object
+      required: [id, name, price, interval, isActive, createdAt]
+      properties:
+        id: { type: string }
+        name: { type: string }
+        description: { type: ["string", "null"] }
+        price: { type: number }
+        interval: { type: string }
+        maxAgents: { type: ["integer", "null"] }
+        maxConversations: { type: ["integer", "null"] }
+        features: { type: array, items: { type: string } }
+        isActive: { type: boolean }
+        subscriberCount: { type: integer }
+        createdAt: { type: string }
+
+    PlanInput:
+      type: object
+      required: [name, price, interval]
+      properties:
+        name: { type: string }
+        description: { type: string }
+        price: { type: number }
+        interval: { type: string }
+        maxAgents: { type: integer }
+        maxConversations: { type: integer }
+        features: { type: array, items: { type: string } }
+        isActive: { type: boolean }
+
+    PlanUpdate:
+      type: object
+      properties:
+        name: { type: string }
+        description: { type: ["string", "null"] }
+        price: { type: number }
+        interval: { type: string }
+        maxAgents: { type: ["integer", "null"] }
+        maxConversations: { type: ["integer", "null"] }
+        features: { type: array, items: { type: string } }
+        isActive: { type: boolean }
+
+    # ── Transaction ───────────────────────────────────────────
+    Transaction:
+      type: object
+      required: [id, description, amount, type, status, createdAt]
+      properties:
+        id: { type: string }
+        description: { type: string }
+        amount: { type: number }
+        type: { type: string }
+        status: { type: string }
+        clientId: { type: ["string", "null"] }
+        clientName: { type: ["string", "null"] }
+        planId: { type: ["string", "null"] }
+        planName: { type: ["string", "null"] }
+        dueDate: { type: ["string", "null"] }
+        paidAt: { type: ["string", "null"] }
+        createdAt: { type: string }
+
+    TransactionInput:
+      type: object
+      required: [description, amount, type, status]
+      properties:
+        description: { type: string }
+        amount: { type: number }
+        type: { type: string }
+        status: { type: string }
+        clientId: { type: string }
+        planId: { type: string }
+        dueDate: { type: string }
+
+    TransactionUpdate:
+      type: object
+      properties:
+        description: { type: string }
+        amount: { type: number }
+        status: { type: string }
+        dueDate: { type: ["string", "null"] }
+        paidAt: { type: ["string", "null"] }
+
+    # ── Integration ───────────────────────────────────────────
+    Integration:
+      type: object
+      required: [id, name, type, isActive, createdAt]
+      properties:
+        id: { type: string }
+        name: { type: string }
+        type: { type: string }
+        description: { type: ["string", "null"] }
+        isActive: { type: boolean }
+        status: { type: string }
+        icon: { type: ["string", "null"] }
+        connectedAt: { type: ["string", "null"] }
+        createdAt: { type: string }
+
+    IntegrationInput:
+      type: object
+      required: [name, type]
+      properties:
+        name: { type: string }
+        type: { type: string }
+        description: { type: string }
+        isActive: { type: boolean }
+        icon: { type: string }
+
+    IntegrationUpdate:
+      type: object
+      properties:
+        name: { type: string }
+        description: { type: ["string", "null"] }
+        isActive: { type: boolean }
+        status: { type: string }
+
+    # ── Reports ───────────────────────────────────────────────
+    TrendPoint:
+      type: object
+      required: [label, value]
+      properties:
+        label: { type: string }
+        value: { type: number }
+        secondary: { type: ["number", "null"] }
+
+    AgentMetric:
+      type: object
+      required: [agentId, name, attendances, avgDuration, satisfaction]
+      properties:
+        agentId: { type: string }
+        name: { type: string }
+        attendances: { type: integer }
+        avgDuration: { type: number }
+        satisfaction: { type: number }
+        resolutionRate: { type: number }
+
+    ChannelBreakdownItem:
+      type: object
+      required: [channel, count, percentage]
+      properties:
+        channel: { type: string }
+        count: { type: integer }
+        percentage: { type: number }
