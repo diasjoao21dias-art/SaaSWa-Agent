@@ -1,190 +1,157 @@
-/**
- * Users — tabela de usuários da plataforma com convite e edição.
- */
 import { useState } from 'react';
-import {
-  useListUsers, useCreateUser, useUpdateUser, getListUsersQueryKey,
-} from '@workspace/api-client-react';
-import { useQueryClient } from '@tanstack/react-query';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { useUsers, useCreateUser, useUpdateUser, useDeleteUser } from '@/application/use-cases/use-users';
+import { CreateUserFormSchema, type CreateUserFormValues } from '@/application/dtos/user.dto';
+import type { User, UserId } from '@/domain/entities/user.entity';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { StatusBadge } from '@/components/ui/status-badge';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
-import { Plus, Search, Pencil, UserCog } from 'lucide-react';
-import { format } from 'date-fns';
+import { Plus, Pencil, Trash2 } from 'lucide-react';
+import { formatDistanceToNow } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { useToast } from '@/hooks/use-toast';
-import { MOCK_USERS } from '@/lib/mock-data';
-import { cn } from '@/lib/utils';
 
-const ROLE_STYLES: Record<string, string> = {
-  admin:  'bg-primary/10 text-primary',
-  member: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',
-  viewer: 'bg-muted text-muted-foreground',
-};
+const ROLE_LABELS: Record<string, string> = { admin: 'Admin', member: 'Membro', viewer: 'Visualizador' };
 
-const ROLE_LABELS: Record<string, string> = {
-  admin: 'Admin', member: 'Membro', viewer: 'Visualizador',
-};
-
-export default function Users() {
-  const [search, setSearch] = useState('');
-  const [dialogOpen, setDialogOpen] = useState(false);
-  const [editingUser, setEditingUser] = useState<any>(null);
-
-  const { data: apiUsers = [], isLoading } = useListUsers();
-  const createUser = useCreateUser();
-  const updateUser = useUpdateUser();
-  const queryClient = useQueryClient();
-  const { toast } = useToast();
-
-  const users = apiUsers.length ? apiUsers : MOCK_USERS;
-
-  const filtered = users.filter(u => {
-    const q = search.toLowerCase();
-    return u.name.toLowerCase().includes(q) || u.email.toLowerCase().includes(q) || u.role.toLowerCase().includes(q);
+function UserForm({
+  defaultValues,
+  onSubmit,
+  isLoading,
+}: {
+  defaultValues?: Partial<CreateUserFormValues>;
+  onSubmit: (data: CreateUserFormValues) => void;
+  isLoading: boolean;
+}) {
+  const { register, handleSubmit, setValue, formState: { errors } } = useForm<CreateUserFormValues>({
+    resolver: zodResolver(CreateUserFormSchema),
+    defaultValues: { status: 'active', role: 'member', ...defaultValues },
   });
 
-  const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    const fd = new FormData(e.currentTarget);
-    const data = {
-      name: fd.get('name') as string,
-      email: fd.get('email') as string,
-      role: fd.get('role') as string,
-      status: fd.get('status') as string,
-      password: fd.get('password') as string,
-    };
-    if (editingUser) {
-      const { password, ...updateData } = data;
-      updateUser.mutate({ id: editingUser.id, data: updateData }, {
-        onSuccess: () => {
-          queryClient.invalidateQueries({ queryKey: getListUsersQueryKey() });
-          setDialogOpen(false); setEditingUser(null);
-          toast({ title: 'Usuário atualizado' });
-        },
+  return (
+    <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+      <div className="space-y-1.5">
+        <Label>Nome *</Label>
+        <Input {...register('name')} />
+        {errors.name && <p className="text-xs text-destructive">{errors.name.message}</p>}
+      </div>
+      <div className="space-y-1.5">
+        <Label>E-mail *</Label>
+        <Input type="email" {...register('email')} />
+        {errors.email && <p className="text-xs text-destructive">{errors.email.message}</p>}
+      </div>
+      <div className="grid grid-cols-2 gap-4">
+        <div className="space-y-1.5">
+          <Label>Papel</Label>
+          <Select defaultValue={defaultValues?.role ?? 'member'} onValueChange={(v) => setValue('role', v as CreateUserFormValues['role'])}>
+            <SelectTrigger><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="admin">Admin</SelectItem>
+              <SelectItem value="member">Membro</SelectItem>
+              <SelectItem value="viewer">Visualizador</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="space-y-1.5">
+          <Label>Status</Label>
+          <Select defaultValue={defaultValues?.status ?? 'active'} onValueChange={(v) => setValue('status', v as 'active' | 'inactive')}>
+            <SelectTrigger><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="active">Ativo</SelectItem>
+              <SelectItem value="inactive">Inativo</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
+      <Button type="submit" disabled={isLoading} className="w-full">{isLoading ? 'Salvando…' : 'Salvar'}</Button>
+    </form>
+  );
+}
+
+export default function Users() {
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [editing, setEditing] = useState<User | null>(null);
+  const { toast } = useToast();
+
+  const { data: users = [], isLoading } = useUsers();
+  const createUser = useCreateUser();
+  const updateUser = useUpdateUser();
+  const deleteUser = useDeleteUser();
+
+  const handleSubmit = (data: CreateUserFormValues) => {
+    if (editing) {
+      updateUser.mutate({ id: editing.id, input: data }, {
+        onSuccess: () => { setDialogOpen(false); setEditing(null); toast({ title: 'Usuário atualizado' }); },
       });
     } else {
-      createUser.mutate({ data }, {
-        onSuccess: () => {
-          queryClient.invalidateQueries({ queryKey: getListUsersQueryKey() });
-          setDialogOpen(false);
-          toast({ title: 'Usuário convidado' });
-        },
-      });
+      createUser.mutate(data, { onSuccess: () => { setDialogOpen(false); toast({ title: 'Usuário criado' }); } });
     }
   };
 
-  if (isLoading) return (
-    <div className="p-6"><div className="h-96 bg-card border border-card-border rounded-xl animate-pulse" /></div>
-  );
+  const handleDelete = (id: UserId) => {
+    if (!confirm('Remover este usuário?')) return;
+    deleteUser.mutate(id, { onSuccess: () => toast({ title: 'Usuário removido' }) });
+  };
+
+  if (isLoading) return <div className="p-6"><div className="h-96 bg-card border border-card-border rounded-xl animate-pulse" /></div>;
 
   return (
     <div className="p-4 md:p-6 space-y-4">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-xl font-semibold text-foreground">Usuários</h1>
-          <p className="text-sm text-muted-foreground mt-0.5">{filtered.length} usuário(s)</p>
+          <p className="text-sm text-muted-foreground mt-0.5">{users.length} usuário(s)</p>
         </div>
-        <Dialog open={dialogOpen} onOpenChange={open => { setDialogOpen(open); if (!open) setEditingUser(null); }}>
+        <Dialog open={dialogOpen} onOpenChange={(o) => { setDialogOpen(o); if (!o) setEditing(null); }}>
           <DialogTrigger asChild>
-            <Button data-testid="button-invite-user">
-              <Plus className="w-4 h-4 mr-2" /> Convidar
-            </Button>
+            <Button><Plus className="w-4 h-4 mr-2" /> Novo Usuário</Button>
           </DialogTrigger>
           <DialogContent>
-            <DialogHeader>
-              <DialogTitle>{editingUser ? 'Editar Usuário' : 'Convidar Usuário'}</DialogTitle>
-            </DialogHeader>
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div><Label>Nome *</Label><Input name="name" defaultValue={editingUser?.name} required /></div>
-              <div><Label>E-mail *</Label><Input name="email" type="email" defaultValue={editingUser?.email} required /></div>
-              <div>
-                <Label>Função</Label>
-                <Select name="role" defaultValue={editingUser?.role || 'member'}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="admin">Admin</SelectItem>
-                    <SelectItem value="member">Membro</SelectItem>
-                    <SelectItem value="viewer">Visualizador</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div>
-                <Label>Status</Label>
-                <Select name="status" defaultValue={editingUser?.status || 'active'}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="active">Ativo</SelectItem>
-                    <SelectItem value="inactive">Inativo</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              {!editingUser && (
-                <div><Label>Senha *</Label><Input name="password" type="password" required /></div>
-              )}
-              <Button type="submit" className="w-full" disabled={createUser.isPending || updateUser.isPending}>
-                {editingUser ? 'Salvar' : 'Convidar'}
-              </Button>
-            </form>
+            <DialogHeader><DialogTitle>{editing ? 'Editar Usuário' : 'Novo Usuário'}</DialogTitle></DialogHeader>
+            <UserForm
+              defaultValues={editing ? { name: editing.name, email: editing.email, role: editing.role, status: editing.status } : undefined}
+              onSubmit={handleSubmit}
+              isLoading={createUser.isPending || updateUser.isPending}
+            />
           </DialogContent>
         </Dialog>
       </div>
-
-      <div className="relative max-w-sm">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-        <Input
-          type="search" placeholder="Buscar usuários…" value={search}
-          onChange={e => setSearch(e.target.value)} className="pl-9"
-          data-testid="input-search-users"
-        />
-      </div>
-
       <div className="bg-card border border-card-border rounded-xl overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-border bg-muted/30">
-                {['Usuário', 'E-mail', 'Função', 'Status', 'Último acesso', 'Ações'].map(h => (
-                  <th key={h} className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wide whitespace-nowrap">{h}</th>
+              <tr className="border-b border-border">
+                {['Usuário', 'Papel', 'Status', 'Último Login', ''].map((h) => (
+                  <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wide">{h}</th>
                 ))}
               </tr>
             </thead>
-            <tbody className="divide-y divide-border">
-              {filtered.map(user => {
-                const initials = user.name.split(' ').map((n: string) => n[0]).join('').toUpperCase().slice(0, 2);
+            <tbody>
+              {users.map((u) => {
+                const initials = u.name.split(' ').map((n) => n[0]).slice(0, 2).join('').toUpperCase();
                 return (
-                  <tr key={user.id} className="hover:bg-accent/30 transition-colors" data-testid={`user-${user.id}`}>
+                  <tr key={u.id} className="border-b border-border hover:bg-accent/30 transition-colors">
                     <td className="px-4 py-3">
-                      <div className="flex items-center gap-2.5">
-                        <Avatar className="w-8 h-8 shrink-0">
-                          <AvatarFallback className="text-xs font-semibold">{initials}</AvatarFallback>
-                        </Avatar>
-                        <span className="font-medium text-foreground whitespace-nowrap">{user.name}</span>
+                      <div className="flex items-center gap-3">
+                        <Avatar className="w-8 h-8"><AvatarFallback className="text-xs">{initials}</AvatarFallback></Avatar>
+                        <div>
+                          <p className="text-sm font-medium text-foreground">{u.name}</p>
+                          <p className="text-xs text-muted-foreground">{u.email}</p>
+                        </div>
                       </div>
                     </td>
-                    <td className="px-4 py-3 text-muted-foreground">{user.email}</td>
+                    <td className="px-4 py-3 text-xs font-medium text-muted-foreground">{ROLE_LABELS[u.role] ?? u.role}</td>
+                    <td className="px-4 py-3"><StatusBadge status={u.status} /></td>
+                    <td className="px-4 py-3 text-xs text-muted-foreground">{formatDistanceToNow(u.lastLogin, { addSuffix: true, locale: ptBR })}</td>
                     <td className="px-4 py-3">
-                      <span className={cn(
-                        'inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold',
-                        ROLE_STYLES[user.role] ?? 'bg-muted text-muted-foreground',
-                      )}>
-                        {ROLE_LABELS[user.role] ?? user.role}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3"><StatusBadge status={user.status} /></td>
-                    <td className="px-4 py-3 text-muted-foreground whitespace-nowrap text-xs">
-                      {user.lastLogin ? format(new Date(user.lastLogin), 'dd/MM/yyyy HH:mm', { locale: ptBR }) : 'Nunca'}
-                    </td>
-                    <td className="px-4 py-3">
-                      <Button variant="ghost" size="sm" className="h-7 gap-1.5 text-xs"
-                        onClick={() => { setEditingUser(user); setDialogOpen(true); }}
-                        data-testid={`button-edit-${user.id}`}>
-                        <Pencil className="w-3.5 h-3.5" /> Editar
-                      </Button>
+                      <div className="flex items-center gap-1">
+                        <Button variant="ghost" size="icon" className="w-7 h-7" onClick={() => { setEditing(u); setDialogOpen(true); }}><Pencil className="w-3.5 h-3.5" /></Button>
+                        <Button variant="ghost" size="icon" className="w-7 h-7 text-destructive hover:text-destructive" onClick={() => handleDelete(u.id)}><Trash2 className="w-3.5 h-3.5" /></Button>
+                      </div>
                     </td>
                   </tr>
                 );
@@ -192,12 +159,6 @@ export default function Users() {
             </tbody>
           </table>
         </div>
-        {filtered.length === 0 && (
-          <div className="flex flex-col items-center justify-center py-14 gap-2">
-            <UserCog className="w-8 h-8 text-muted-foreground/30" />
-            <p className="text-sm text-muted-foreground">Nenhum usuário encontrado</p>
-          </div>
-        )}
       </div>
     </div>
   );

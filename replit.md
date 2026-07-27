@@ -32,7 +32,31 @@ Multi-tenant SaaS backend for managing WhatsApp AI agents, conversations, knowle
 
 ## Where things live
 
-_Populate as you build — short repo map plus pointers to the source-of-truth file for DB schema, API contracts, theme files, etc._
+### `artifacts/saas-dashboard/` — React/Vite SaaS Dashboard
+
+Clean Architecture em 4 camadas (nenhuma camada importa de uma acima dela):
+
+```
+src/
+├── domain/              # Entidades (readonly interfaces + branded IDs)
+│   ├── entities/        # conversation, client, agent, attendance, user, plan, transaction, integration, dashboard
+│   └── repositories/    # Interfaces (contratos): IConversationRepository, IClientRepository…
+├── application/         # Lógica de aplicação (sem dependências de framework)
+│   ├── dtos/            # Zod schemas — validação + inferência de tipos
+│   ├── mappers/         # DTO → Entity (funções puras, sem efeitos)
+│   └── use-cases/       # React Query hooks: useConversations, useClients…
+├── infrastructure/      # Implementações concretas
+│   ├── repositories/mock/  # MockConversationRepository, MockClientRepository…
+│   └── di/              # RepositoryContext + RepositoryProvider (injeção de dependência)
+└── presentation/        # Componentes React (pages/ + components/)
+    └── pages/           # Consomem apenas use-cases — zero acesso direto a repositórios
+```
+
+**Regra de ouro:** páginas importam de `application/use-cases`, nunca de `infrastructure` ou `domain` diretamente.
+
+**Trocar mock → API real:** implemente `ApiConversationRepository implements IConversationRepository` e injete-o no `RepositoryProvider` — zero alteração nas páginas.
+
+### `artifacts/api-server/` — NestJS API Backend (requer PostgreSQL + Redis)
 
 ## Architecture decisions
 
