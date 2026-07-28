@@ -414,6 +414,10 @@ model User {
   phone           String?    @db.VarChar(30)
   role            UserRole   @default(AGENT)
   status          UserStatus @default(INVITED)
+  /// Grants platform-level superadmin privileges (manage all tenants and plans).
+  /// Completely independent of the tenant-scoped UserRole hierarchy.
+  /// Set via `prisma/seed-superadmin.ts` — never exposed on registration endpoints.
+  isSuperAdmin    Boolean    @default(false) @map("is_super_admin")
   lastLoginAt     DateTime?              @map("last_login_at") @db.Timestamptz(6)
   lastLoginIp     String?    @map("last_login_ip") @db.VarChar(45)
   invitedById     String?    @db.Uuid @map("invited_by_id")

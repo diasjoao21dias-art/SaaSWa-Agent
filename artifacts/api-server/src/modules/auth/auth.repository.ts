@@ -21,6 +21,10 @@ export class AuthRepository {
         passwordHash: true,
         role: true,
         status: true,
+        // isSuperAdmin is included so login() can embed the claim in the JWT.
+        // It is intentionally excluded from all registration / profile update
+        // endpoints — it can only be set via the seed-superadmin CLI script.
+        isSuperAdmin: true,
         emailVerifiedAt: true,
         tenant: { select: { status: true } },
       },
@@ -37,6 +41,8 @@ export class AuthRepository {
         name: true,
         role: true,
         status: true,
+        // Required by refresh() to re-embed the claim on token rotation.
+        isSuperAdmin: true,
         tenant: { select: { status: true } },
       },
     });
