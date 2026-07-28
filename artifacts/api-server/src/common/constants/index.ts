@@ -47,9 +47,5 @@ export const ROLE_LABELS: Record<UserRole, string> = {
   [UserRole.VIEWER]: 'Cliente',
 };
 
-// ─── Decorator metadata keys (additions) ─────────────────────────────────────
-export const PERMISSIONS_KEY = 'permissions';
-
 // ─── Cache key prefixes (additions) ──────────────────────────────────────────
-export const CACHE_KEY_PERMISSIONS = 'perms:';
 export const CACHE_KEY_PASSWORD_RESET = 'pwd_reset:';

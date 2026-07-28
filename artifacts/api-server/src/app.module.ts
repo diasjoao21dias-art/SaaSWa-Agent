@@ -6,7 +6,7 @@ import { APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 import { TenantGuard } from './common/guards/tenant.guard';
 import { RolesGuard } from './common/guards/roles.guard';
-import { PermissionsGuard } from './common/guards/permissions.guard';
+
 import { TokenExpiryInterceptor } from './common/interceptors/token-expiry.interceptor';
 
 import appConfig from './config/app.config';
@@ -102,9 +102,6 @@ import { SubscriptionsModule } from './modules/subscriptions/subscriptions.modul
     { provide: APP_GUARD, useClass: TenantGuard },
     // 4. Role-based access — enforces @Roles(); OWNER bypasses; no decorator = open to any role
     { provide: APP_GUARD, useClass: RolesGuard },
-    // 5. Granular permissions — enforces @RequirePermissions(); OWNER bypasses; no decorator = pass
-    { provide: APP_GUARD, useClass: PermissionsGuard },
-
     // ─── Global interceptors ───────────────────────────────────────────────────
     // Adds X-Token-Expiring / X-Token-Expires-In headers when token nears expiry
     { provide: APP_INTERCEPTOR, useClass: TokenExpiryInterceptor },
