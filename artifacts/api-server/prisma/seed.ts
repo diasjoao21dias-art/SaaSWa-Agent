@@ -83,6 +83,16 @@ const PERMISSIONS: Array<{
   // Subscriptions
   { key: 'subscriptions:read',  name: 'Ver assinatura',      description: 'Ver status e histórico da assinatura', group: 'subscriptions' },
   { key: 'subscriptions:write', name: 'Gerenciar assinatura', description: 'Alterar plano e dados de cobrança',   group: 'subscriptions' },
+
+  // Attendances
+  { key: 'attendances:read',   name: 'Ver atendimentos',      description: 'Listar e visualizar registros de atendimento humano', group: 'attendances' },
+  { key: 'attendances:write',  name: 'Gerenciar atendimentos', description: 'Criar e atualizar registros de atendimento',          group: 'attendances' },
+  { key: 'attendances:delete', name: 'Remover atendimentos',   description: 'Excluir registros de atendimento',                    group: 'attendances' },
+
+  // Financial
+  { key: 'financial:read',   name: 'Ver transações',       description: 'Listar e visualizar transações financeiras', group: 'financial' },
+  { key: 'financial:write',  name: 'Gerenciar transações',  description: 'Criar e atualizar transações financeiras',   group: 'financial' },
+  { key: 'financial:delete', name: 'Remover transações',    description: 'Excluir transações financeiras',             group: 'financial' },
 ];
 
 // ─── Seed runner ──────────────────────────────────────────────────────────────
