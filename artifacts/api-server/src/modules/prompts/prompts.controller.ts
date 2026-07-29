@@ -1,12 +1,9 @@
-import { Controller, Get, Post, Patch, Delete, Body, Param, Query, HttpCode, HttpStatus, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Delete, Body, Param, Query, HttpCode, HttpStatus } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
 import { PromptsService } from './prompts.service';
 import { CreatePromptDto } from './dto/create-prompt.dto';
 import { UpdatePromptDto } from './dto/update-prompt.dto';
 import { PaginationDto } from '../../common/dto/pagination.dto';
-import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
-import { TenantGuard } from '../../common/guards/tenant.guard';
-import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { CurrentTenant } from '../../common/decorators/current-tenant.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
@@ -15,7 +12,6 @@ import type { TenantContext, JwtPayload } from '../../common/types/authenticated
 
 @ApiTags('Prompts')
 @ApiBearerAuth('access-token')
-@UseGuards(JwtAuthGuard, TenantGuard, RolesGuard)
 @Controller({ path: 'prompts', version: '1' })
 export class PromptsController {
   constructor(private readonly service: PromptsService) {}

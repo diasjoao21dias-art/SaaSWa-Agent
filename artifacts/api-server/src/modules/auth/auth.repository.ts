@@ -100,37 +100,6 @@ export class AuthRepository {
     });
   }
 
-  // ─── User permission keys (for PermissionsGuard) ─────────────────────────────
-  async findUserPermissionKeys(userId: string, tenantId: string): Promise<string[]> {
-    const [rolePerms, directPerms] = await Promise.all([
-      this.prisma.rolePermission.findMany({
-        where: {
-          deletedAt: null,
-          role: {
-            tenantId,
-            isSystem: true,
-            deletedAt: null,
-            userRoles: { some: { userId, deletedAt: null } },
-          },
-        },
-        include: { permission: { select: { key: true } } },
-      }),
-      this.prisma.userPermission.findMany({
-        where: {
-          userId,
-          deletedAt: null,
-          OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }],
-        },
-        include: { permission: { select: { key: true } } },
-      }),
-    ]);
-
-    return [
-      ...rolePerms.map((rp) => rp.permission.key),
-      ...directPerms.map((up) => up.permission.key),
-    ];
-  }
-
   // ─── Password Reset ────────────────────────────────────────────────────────────
   async savePasswordResetToken(
     userId: string,

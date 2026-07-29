@@ -25,8 +25,9 @@ import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
 import { Public } from '../../common/decorators/public.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
-import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
-import type { AuthenticatedRequest, JwtPayload, RefreshTokenPayload } from '../../common/types/authenticated-request.type';
+
+import type { AuthenticatedRequest, JwtPayload } from '../../common/types/authenticated-request.type';
+import type { RefreshTokenPayload } from './interfaces/jwt-payload.interface';
 import type { Request } from 'express';
 
 @ApiTags('Auth')
@@ -64,7 +65,6 @@ export class AuthController {
     return this.authService.refresh(req.user, ipAddress, userAgent);
   }
 
-  @UseGuards(JwtAuthGuard)
   @Post('logout')
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiBearerAuth('access-token')
@@ -74,7 +74,6 @@ export class AuthController {
     await this.authService.logout(user.jti);
   }
 
-  @UseGuards(JwtAuthGuard)
   @Post('logout/all')
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiBearerAuth('access-token')
@@ -83,7 +82,6 @@ export class AuthController {
     await this.authService.logoutAll(user.sub);
   }
 
-  @UseGuards(JwtAuthGuard)
   @Patch('password')
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiBearerAuth('access-token')
@@ -95,7 +93,6 @@ export class AuthController {
     await this.authService.changePassword(user.sub, dto);
   }
 
-  @UseGuards(JwtAuthGuard)
   @Get('me')
   @ApiBearerAuth('access-token')
   @ApiOperation({ summary: 'Get current authenticated user info' })

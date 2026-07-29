@@ -1,10 +1,7 @@
-import { Controller, Get, Post, Patch, Body, UseGuards, HttpCode, HttpStatus } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Body, HttpCode, HttpStatus } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
 import { SubscriptionsService } from './subscriptions.service';
 import { CreateSubscriptionDto } from './dto/create-subscription.dto';
-import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
-import { TenantGuard } from '../../common/guards/tenant.guard';
-import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { CurrentTenant } from '../../common/decorators/current-tenant.decorator';
 import { UserRole } from '../../common/constants';
@@ -18,7 +15,6 @@ class CancelSubscriptionDto {
 
 @ApiTags('Subscriptions')
 @ApiBearerAuth('access-token')
-@UseGuards(JwtAuthGuard, TenantGuard, RolesGuard)
 @Controller({ path: 'subscriptions', version: '1' })
 export class SubscriptionsController {
   constructor(private readonly service: SubscriptionsService) {}
@@ -31,12 +27,14 @@ export class SubscriptionsController {
   }
 
   @Get('active')
+  @Roles(UserRole.OWNER, UserRole.ADMIN)
   @ApiOperation({ summary: 'Get the current active subscription' })
   getActive(@CurrentTenant() tenant: TenantContext) {
     return this.service.getActive(tenant.id);
   }
 
   @Get('history')
+  @Roles(UserRole.OWNER, UserRole.ADMIN)
   @ApiOperation({ summary: 'Get subscription history' })
   getHistory(@CurrentTenant() tenant: TenantContext) {
     return this.service.getHistory(tenant.id);

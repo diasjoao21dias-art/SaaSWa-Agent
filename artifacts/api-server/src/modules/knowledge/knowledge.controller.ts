@@ -8,7 +8,6 @@ import {
   Query,
   HttpCode,
   HttpStatus,
-  UseGuards,
   UseInterceptors,
   UploadedFile,
   ParseFilePipe,
@@ -32,9 +31,6 @@ import { CreateKnowledgeBaseDto } from './dto/create-knowledge-base.dto';
 import { CreateKnowledgeDocumentDto } from './dto/create-knowledge-document.dto';
 import { IngestUrlDto } from './dto/ingest-url.dto';
 import { PaginationDto } from '../../common/dto/pagination.dto';
-import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
-import { TenantGuard } from '../../common/guards/tenant.guard';
-import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { CurrentTenant } from '../../common/decorators/current-tenant.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
@@ -47,7 +43,6 @@ import type { TenantContext } from '../../common/types/authenticated-request.typ
 
 @ApiTags('Knowledge')
 @ApiBearerAuth('access-token')
-@UseGuards(JwtAuthGuard, TenantGuard, RolesGuard)
 @Controller({ path: 'knowledge', version: '1' })
 export class KnowledgeController {
   constructor(private readonly service: KnowledgeService) {}

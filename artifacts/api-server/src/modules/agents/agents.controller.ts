@@ -1,12 +1,9 @@
-import { Controller, Get, Post, Patch, Delete, Body, Param, Query, HttpCode, HttpStatus, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Delete, Body, Param, Query, HttpCode, HttpStatus } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
 import { AgentsService } from './agents.service';
 import { CreateAgentDto } from './dto/create-agent.dto';
 import { UpdateAgentDto } from './dto/update-agent.dto';
 import { PaginationDto } from '../../common/dto/pagination.dto';
-import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
-import { TenantGuard } from '../../common/guards/tenant.guard';
-import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { CurrentTenant } from '../../common/decorators/current-tenant.decorator';
 import { UserRole } from '../../common/constants';
@@ -14,7 +11,6 @@ import type { TenantContext } from '../../common/types/authenticated-request.typ
 
 @ApiTags('Agents')
 @ApiBearerAuth('access-token')
-@UseGuards(JwtAuthGuard, TenantGuard, RolesGuard)
 @Controller({ path: 'agents', version: '1' })
 export class AgentsController {
   constructor(private readonly service: AgentsService) {}

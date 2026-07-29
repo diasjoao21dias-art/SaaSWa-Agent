@@ -1,7 +1,6 @@
 import {
   Controller, Get, Post, Patch, Delete,
   Body, Param, Query, HttpCode, HttpStatus,
-  UseGuards,
 } from '@nestjs/common';
 import {
   ApiTags, ApiBearerAuth, ApiOperation, ApiParam, ApiBody,
@@ -10,9 +9,6 @@ import { WhatsappService } from './whatsapp.service';
 import { CreateWhatsappNumberDto } from './dto/create-whatsapp-number.dto';
 import { SendMessageDto } from './dto/send-message.dto';
 import { PaginationDto } from '../../common/dto/pagination.dto';
-import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
-import { TenantGuard } from '../../common/guards/tenant.guard';
-import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { CurrentTenant } from '../../common/decorators/current-tenant.decorator';
 import { UserRole } from '../../common/constants';
@@ -34,7 +30,6 @@ class DirectSendMessageDto extends SendMessageDto {
 
 @ApiTags('WhatsApp')
 @ApiBearerAuth('access-token')
-@UseGuards(JwtAuthGuard, TenantGuard, RolesGuard)
 @Controller({ path: 'whatsapp', version: '1' })
 export class WhatsappController {
   constructor(private readonly service: WhatsappService) {}

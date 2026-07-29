@@ -1,13 +1,10 @@
 import {
   Controller, Get, Post, Body, Param, Query,
-  UseGuards, HttpCode, HttpStatus,
+  HttpCode, HttpStatus,
 } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth, ApiOperation, ApiQuery } from '@nestjs/swagger';
 import { AiService } from './ai.service';
 import { ChatCompletionDto, TestPromptDto } from './dto/chat-completion.dto';
-import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
-import { TenantGuard } from '../../common/guards/tenant.guard';
-import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { CurrentTenant } from '../../common/decorators/current-tenant.decorator';
 import { UserRole } from '../../common/constants';
@@ -24,7 +21,6 @@ class PreviewPromptQueryDto {
 
 @ApiTags('AI')
 @ApiBearerAuth('access-token')
-@UseGuards(JwtAuthGuard, TenantGuard, RolesGuard)
 @Controller({ path: 'ai', version: '1' })
 export class AiController {
   constructor(private readonly service: AiService) {}
