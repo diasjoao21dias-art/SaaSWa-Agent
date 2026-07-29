@@ -1,27 +1,27 @@
 import type { ReactNode } from 'react';
 import { useMemo } from 'react';
 import { RepositoryContext, type RepositoryContainer } from './repository.context';
-import { MockConversationRepository } from '../repositories/mock/mock-conversation.repository';
-import { MockClientRepository } from '../repositories/mock/mock-client.repository';
-import { MockAgentRepository } from '../repositories/mock/mock-agent.repository';
-import { MockAttendanceRepository } from '../repositories/mock/mock-attendance.repository';
-import { MockUserRepository } from '../repositories/mock/mock-user.repository';
-import { MockPlanRepository } from '../repositories/mock/mock-plan.repository';
-import { MockFinancialRepository } from '../repositories/mock/mock-financial.repository';
-import { MockIntegrationRepository } from '../repositories/mock/mock-integration.repository';
-import { MockDashboardRepository } from '../repositories/mock/mock-dashboard.repository';
+import { ApiConversationRepository } from '../repositories/api/api-conversation.repository';
+import { ApiClientRepository } from '../repositories/api/api-client.repository';
+import { ApiAgentRepository } from '../repositories/api/api-agent.repository';
+import { ApiAttendanceRepository } from '../repositories/api/api-attendance.repository';
+import { ApiUserRepository } from '../repositories/api/api-user.repository';
+import { ApiPlanRepository } from '../repositories/api/api-plan.repository';
+import { ApiFinancialRepository } from '../repositories/api/api-financial.repository';
+import { ApiIntegrationRepository } from '../repositories/api/api-integration.repository';
+import { ApiDashboardRepository } from '../repositories/api/api-dashboard.repository';
 
 function buildContainer(): RepositoryContainer {
   return {
-    conversations: new MockConversationRepository(),
-    clients: new MockClientRepository(),
-    agents: new MockAgentRepository(),
-    attendances: new MockAttendanceRepository(),
-    users: new MockUserRepository(),
-    plans: new MockPlanRepository(),
-    financial: new MockFinancialRepository(),
-    integrations: new MockIntegrationRepository(),
-    dashboard: new MockDashboardRepository(),
+    conversations: new ApiConversationRepository(),
+    clients: new ApiClientRepository(),
+    agents: new ApiAgentRepository(),
+    attendances: new ApiAttendanceRepository(),
+    users: new ApiUserRepository(),
+    plans: new ApiPlanRepository(),
+    financial: new ApiFinancialRepository(),
+    integrations: new ApiIntegrationRepository(),
+    dashboard: new ApiDashboardRepository(),
   };
 }
 

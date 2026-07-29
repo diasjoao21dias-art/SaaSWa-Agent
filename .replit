@@ -1,4 +1,4 @@
-modules = ["nodejs-20", "web", "bash"]
+modules = ["nodejs-20", "web", "bash", "postgresql-16"]
 
 [deployment]
 router = "application"
@@ -64,3 +64,17 @@ channel = "stable-25_05"
 [userenv.shared]
 APP_PUBLIC_URL = "https://45cac0a9-7ce7-4ea7-9b97-f34919897915-00-33un003drhiwf.picard.replit.dev/api"
 REDIS_PORT = "6379"
+APP_ALLOWED_ORIGINS = "*"
+APP_GLOBAL_PREFIX = "api"
+JWT_ACCESS_EXPIRATION = "15m"
+JWT_REFRESH_EXPIRATION = "7d"
+NODE_ENV = "development"
+OPENAI_DEFAULT_MODEL = "gpt-4o-mini"
+REDIS_DB = "0"
+REDIS_HOST = "localhost"
+REDIS_TLS = "false"
+EVOLUTION_API_BASE_URL = "http://localhost:8888"
+EVOLUTION_API_KEY = "dev-placeholder-key"
+EVOLUTION_WEBHOOK_SECRET = "dev-placeholder-secret-32chars"
+JWT_ACCESS_SECRET = "WVdG7kbekC6KzJOjrVS/nq0z0CzgbJY33KOjPYF9+G/aZFfwS2KEd0RoymYzC8Ld"
+JWT_REFRESH_SECRET = "Eohehpi6bit3O1ReOE/rtNvotX5EztWzthuspfd5jHFR7n2avCEC6vVE4vlxbI8G"

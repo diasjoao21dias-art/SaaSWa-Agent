@@ -27,13 +27,31 @@ export const configValidationSchema = Joi.object({
   JWT_REFRESH_EXPIRATION: Joi.string().default('7d'),
 
   // ─── OpenAI ───────────────────────────────────────────────────────────────────
-  OPENAI_API_KEY: Joi.string().required(),
+  // Required in production; optional in development (AI features won't work without it)
+  OPENAI_API_KEY: Joi.string().when('NODE_ENV', {
+    is: 'production',
+    then: Joi.required(),
+    otherwise: Joi.optional().default('sk-dev-placeholder'),
+  }),
   OPENAI_ORGANIZATION: Joi.string().allow('').optional(),
   OPENAI_DEFAULT_MODEL: Joi.string().default('gpt-4o-mini'),
   OPENAI_TIMEOUT_MS: Joi.number().default(30000),
 
   // ─── Evolution API ────────────────────────────────────────────────────────────
-  EVOLUTION_API_BASE_URL: Joi.string().uri().required(),
-  EVOLUTION_API_KEY: Joi.string().required(),
-  EVOLUTION_WEBHOOK_SECRET: Joi.string().min(16).required(),
+  // Optional in development — required in production for WhatsApp to function
+  EVOLUTION_API_BASE_URL: Joi.string().uri().when('NODE_ENV', {
+    is: 'production',
+    then: Joi.required(),
+    otherwise: Joi.optional().default('http://localhost:8888'),
+  }),
+  EVOLUTION_API_KEY: Joi.string().when('NODE_ENV', {
+    is: 'production',
+    then: Joi.required(),
+    otherwise: Joi.optional().default('dev-placeholder-key'),
+  }),
+  EVOLUTION_WEBHOOK_SECRET: Joi.string().min(16).when('NODE_ENV', {
+    is: 'production',
+    then: Joi.required(),
+    otherwise: Joi.optional().default('dev-placeholder-secret-32chars'),
+  }),
 });
