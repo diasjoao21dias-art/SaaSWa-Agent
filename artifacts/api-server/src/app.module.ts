@@ -40,6 +40,7 @@ import { WebhooksModule } from './modules/webhooks/webhooks.module';
 import { AiModule } from './modules/ai/ai.module';
 import { PlansModule } from './modules/plans/plans.module';
 import { SubscriptionsModule } from './modules/subscriptions/subscriptions.module';
+import { DashboardCompatModule } from './modules/dashboard-compat/dashboard-compat.module';
 
 @Module({
   imports: [
@@ -89,6 +90,7 @@ import { SubscriptionsModule } from './modules/subscriptions/subscriptions.modul
     AiModule,
     PlansModule,
     SubscriptionsModule,
+    DashboardCompatModule,
   ],
   providers: [
     PinoLogger,

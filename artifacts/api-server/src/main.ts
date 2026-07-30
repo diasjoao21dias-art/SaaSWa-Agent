@@ -66,10 +66,12 @@ async function bootstrap(): Promise<void> {
   app.useGlobalFilters(new AllExceptionsFilter(logger));
 
   // ─── Global Interceptors ──────────────────────────────────────────────────────
+  const { Reflector } = await import('@nestjs/core');
+  const reflector = app.get(Reflector);
   app.useGlobalInterceptors(
     new LoggingInterceptor(logger),
     new TimeoutInterceptor(),
-    new TransformInterceptor(),
+    new TransformInterceptor(reflector),
   );
 
   // ─── Swagger ──────────────────────────────────────────────────────────────────

@@ -24,4 +24,5 @@ else
 fi
 
 echo "==> Starting NestJS API..."
-exec node_modules/.bin/tsx src/main.ts
+# tsx (esbuild) ignores emitDecoratorMetadata — use @swc-node/register instead
+exec node -r @swc-node/register src/main.ts
