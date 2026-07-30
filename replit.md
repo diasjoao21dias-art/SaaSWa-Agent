@@ -77,7 +77,8 @@ _Populate as you build — explicit user instructions worth remembering across s
 
 ## Gotchas
 
-_Populate as you build — sharp edges, "always run X before Y" rules._
+- **DB setup on fresh clone:** `prisma migrate dev` fails (missing baseline migration). Use `prisma db push --accept-data-loss` instead, then run `prisma:seed` for permissions and create the admin user manually (see demo credentials above).
+- **Dependencies must be installed first:** run `pnpm install` from the workspace root before starting any workflow.
 
 ## Pointers
 
