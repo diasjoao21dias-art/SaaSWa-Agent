@@ -1,7 +1,8 @@
- - [Auth system design](auth-system.md) — global guards in AppModule; @Public() must be checked in TenantGuard/RolesGuard when registered globally
+- [Auth system design](auth-system.md) — global guards in AppModule; @Public() must be checked in TenantGuard/RolesGuard when registered globally
 - [Evolution API integration](evolution-integration.md) — EvolutionApiService is pure HTTP, no business logic; WhatsappService orchestrates; reconnect via BullMQ
 - [AI service design](ai-service.md) — OpenAI Responses API (not Chat Completions); PromptBuilderService mounts system prompt automatically; AiAgent.description = personality
 - [AI Memory Architecture](ai-memory-architecture.md) — Redis hot context (List, TTL 2h) + Postgres fallback; nightly BullMQ cleanup for CLOSED convs; never block on Redis failures
 - [RAG Knowledge System](rag-knowledge-system.md) — pgvector vector(1536) column; BullMQ async processing; VectorSearchService exported by KnowledgeModule, imported by AiModule
-- [Dev server startup](dev-server-startup.md) — use tsx (not swc-node/esm-register) for Node.js v20; server fails at config validation without env vars (expected)
+- [Dev server startup](dev-server-startup.md) — use @swc-node/register via resolved path in start-api.sh; tsx breaks NestJS DI (no emitDecoratorMetadata)
+- [Dashboard tables](dashboard-tables.md) — dashboard_* tables (Drizzle layer) are not in Prisma schema; must be created manually; Prisma migrations need db push + resolve --applied baseline on fresh DB
 - [RBAC strategy](rbac-strategy.md) — single strategy: @Roles()+RolesGuard; PermissionsGuard removed; SuperAdmin() for cross-tenant platform routes; no local @UseGuards() in controllers
