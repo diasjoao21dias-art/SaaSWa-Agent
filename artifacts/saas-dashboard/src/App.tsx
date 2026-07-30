@@ -5,7 +5,8 @@ import { ThemeProvider } from '@/components/theme-provider';
 import { Sidebar, SidebarProvider, MobileSidebar } from '@/components/layout/sidebar';
 import { TopBar } from '@/components/layout/topbar';
 import { RepositoryProvider } from '@/infrastructure/di/repository.provider';
-import { Route, Switch, Router as WouterRouter } from 'wouter';
+import { AuthProvider, useAuth } from '@/hooks/use-auth';
+import { Route, Switch, Router as WouterRouter, Redirect } from 'wouter';
 import NotFound from '@/pages/not-found';
 import Home from '@/pages/home';
 import Conversations from '@/pages/conversations';
@@ -18,6 +19,7 @@ import Financial from '@/pages/financial';
 import Integrations from '@/pages/integrations';
 import Reports from '@/pages/reports';
 import Settings from '@/pages/settings';
+import Login from '@/pages/login';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -25,7 +27,7 @@ const queryClient = new QueryClient({
   },
 });
 
-function AppRoutes() {
+function DashboardLayout() {
   return (
     <div className="flex h-screen w-full overflow-hidden">
       <Sidebar />
@@ -53,20 +55,36 @@ function AppRoutes() {
   );
 }
 
+function AppRoutes() {
+  const { isAuthenticated } = useAuth();
+  return (
+    <Switch>
+      <Route path="/login" component={Login} />
+      <Route>
+        {isAuthenticated
+          ? <DashboardLayout />
+          : <Redirect to="/login" />}
+      </Route>
+    </Switch>
+  );
+}
+
 export default function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <ThemeProvider>
-        <RepositoryProvider>
-          <SidebarProvider>
-            <TooltipProvider>
-              <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, '')}>
-                <AppRoutes />
-              </WouterRouter>
-              <Toaster />
-            </TooltipProvider>
-          </SidebarProvider>
-        </RepositoryProvider>
+        <AuthProvider>
+          <RepositoryProvider>
+            <SidebarProvider>
+              <TooltipProvider>
+                <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, '')}>
+                  <AppRoutes />
+                </WouterRouter>
+                <Toaster />
+              </TooltipProvider>
+            </SidebarProvider>
+          </RepositoryProvider>
+        </AuthProvider>
       </ThemeProvider>
     </QueryClientProvider>
   );

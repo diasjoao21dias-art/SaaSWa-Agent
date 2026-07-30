@@ -5,4 +5,5 @@
 - [RAG Knowledge System](rag-knowledge-system.md) — pgvector vector(1536) column; BullMQ async processing; VectorSearchService exported by KnowledgeModule, imported by AiModule
 - [Dev server startup](dev-server-startup.md) — use @swc-node/register via resolved path in start-api.sh; tsx breaks NestJS DI (no emitDecoratorMetadata)
 - [Dashboard tables](dashboard-tables.md) — dashboard_* tables (Drizzle layer) are not in Prisma schema; must be created manually; Prisma migrations need db push + resolve --applied baseline on fresh DB
+- [Demo admin credentials](demo-admin.md) — email: admin@aiagent.com / password: admin123; tenant id a0000000-…-0001; user id b0000000-…-0001; OWNER + isSuperAdmin=true
 - [RBAC strategy](rbac-strategy.md) — single strategy: @Roles()+RolesGuard; PermissionsGuard removed; SuperAdmin() for cross-tenant platform routes; no local @UseGuards() in controllers

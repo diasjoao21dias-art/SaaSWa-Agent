@@ -11,6 +11,7 @@
 import { useLocation } from 'wouter';
 import { Sun, Moon, Bell, LogOut, User, ChevronRight } from 'lucide-react';
 import { useTheme } from '@/components/theme-provider';
+import { useAuth } from '@/hooks/use-auth';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
@@ -40,8 +41,14 @@ const UNREAD_NOTIFICATIONS = 4;
 
 export function TopBar() {
   const { theme, toggleTheme } = useTheme();
-  const [location] = useLocation();
+  const { user, logout } = useAuth();
+  const [location, navigate] = useLocation();
   const meta = ROUTE_META[location] ?? { label: 'Dashboard' };
+
+  async function handleLogout() {
+    await logout();
+    navigate('/login');
+  }
 
   return (
     <header className="h-14 shrink-0 border-b border-border bg-card/95 backdrop-blur-sm flex items-center justify-between px-4 md:px-6 z-10">
@@ -101,25 +108,32 @@ export function TopBar() {
               data-testid="button-user-menu"
             >
               <Avatar className="w-7 h-7">
-                <AvatarFallback className="text-[11px] font-semibold bg-primary/15 text-primary">OP</AvatarFallback>
+                <AvatarFallback className="text-[11px] font-semibold bg-primary/15 text-primary">
+                  {user?.initials ?? 'OP'}
+                </AvatarFallback>
               </Avatar>
-              <span className="hidden sm:block text-xs font-medium text-foreground">Operador</span>
+              <span className="hidden sm:block text-xs font-medium text-foreground">
+                {user?.name?.split(' ')[0] ?? 'Operador'}
+              </span>
             </Button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-48">
+          <DropdownMenuContent align="end" className="w-52">
             <DropdownMenuLabel className="font-normal">
               <div className="flex flex-col gap-0.5">
-                <span className="text-sm font-semibold">Operador Admin</span>
-                <span className="text-xs text-muted-foreground">admin@aiagent.com</span>
+                <span className="text-sm font-semibold">{user?.name ?? 'Operador Admin'}</span>
+                <span className="text-xs text-muted-foreground">{user?.email ?? ''}</span>
               </div>
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
-            <DropdownMenuItem>
+            <DropdownMenuItem onClick={() => navigate('/settings')} className="cursor-pointer">
               <User className="w-4 h-4 mr-2 text-muted-foreground" />
               Meu Perfil
             </DropdownMenuItem>
             <DropdownMenuSeparator />
-            <DropdownMenuItem className="text-destructive focus:text-destructive">
+            <DropdownMenuItem
+              onClick={handleLogout}
+              className="text-destructive focus:text-destructive cursor-pointer"
+            >
               <LogOut className="w-4 h-4 mr-2" />
               Sair
             </DropdownMenuItem>
