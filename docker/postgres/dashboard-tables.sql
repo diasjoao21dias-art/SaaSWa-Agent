@@ -109,3 +109,46 @@ CREATE TABLE IF NOT EXISTS dashboard_integrations (
   connected_at TIMESTAMPTZ,
   created_at   TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+
+CREATE TABLE IF NOT EXISTS dashboard_settings (
+  id                       TEXT PRIMARY KEY DEFAULT 'default',
+  company_name             TEXT,
+  website                  TEXT,
+  support_email            TEXT,
+  phone                    TEXT,
+  timezone                 TEXT NOT NULL DEFAULT 'brt',
+  language                 TEXT NOT NULL DEFAULT 'pt',
+  date_format              TEXT NOT NULL DEFAULT 'dmy',
+  time_format              TEXT NOT NULL DEFAULT '24',
+  notif_new_conversation   BOOLEAN NOT NULL DEFAULT TRUE,
+  notif_agent_assignment   BOOLEAN NOT NULL DEFAULT TRUE,
+  notif_escalation         BOOLEAN NOT NULL DEFAULT TRUE,
+  notif_payment_update     BOOLEAN NOT NULL DEFAULT TRUE,
+  notif_agent_offline      BOOLEAN NOT NULL DEFAULT FALSE,
+  notif_weekly_report      BOOLEAN NOT NULL DEFAULT FALSE,
+  notif_conversation_limit BOOLEAN NOT NULL DEFAULT TRUE,
+  twofa_enabled            BOOLEAN NOT NULL DEFAULT FALSE,
+  login_notification       BOOLEAN NOT NULL DEFAULT TRUE,
+  evolution_url            TEXT,
+  evolution_key            TEXT,
+  webhook_secret           TEXT,
+  whatsapp_connected       BOOLEAN NOT NULL DEFAULT FALSE,
+  whatsapp_phone           TEXT,
+  bot_auto_reconnect       BOOLEAN NOT NULL DEFAULT TRUE,
+  bot_escalate_silence     BOOLEAN NOT NULL DEFAULT TRUE,
+  bot_log_all              BOOLEAN NOT NULL DEFAULT TRUE,
+  subscription_status      TEXT NOT NULL DEFAULT 'active',
+  stripe_customer_id       TEXT,
+  created_at               TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at               TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS dashboard_messages (
+  id              TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+  conversation_id TEXT NOT NULL,
+  sender          TEXT NOT NULL DEFAULT 'agent',
+  content         TEXT NOT NULL,
+  created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_dashboard_messages_conversation ON dashboard_messages (conversation_id, created_at);

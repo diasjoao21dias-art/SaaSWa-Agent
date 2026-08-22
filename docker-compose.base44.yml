@@ -60,8 +60,9 @@ services:
       - ./:/workspace
     command: >
       sh -c '
+      apt-get update -qq && apt-get install -y -qq --no-install-recommends postgresql-client >/dev/null 2>&1 || true &&
       corepack enable && corepack prepare pnpm@10 --activate &&
-      pnpm install --frozen-lockfile &&
+      pnpm install --no-frozen-lockfile &&
       pnpm --filter @workspace/api-server run prisma:generate &&
       pnpm --filter @workspace/api-server exec prisma db push --schema=./prisma/schema.prisma --accept-data-loss &&
       PGPASSWORD=postgres_base44_dev psql -h postgres -U postgres -d whatsapp_saas -f /workspace/docker/postgres/dashboard-tables.sql &&
@@ -108,7 +109,7 @@ services:
 
   # ── Evolution API (WhatsApp gateway) ─────────────────────────────────────────
   evolution-api:
-    image: atendai/evolution-api:v2.2.1
+    image: evoapicloud/evolution-api:latest
     restart: unless-stopped
     environment:
       AUTHENTICATION_API_KEY: evolution_base44_dev_key
