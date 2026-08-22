@@ -5,12 +5,12 @@
 
 -- ─── Agents ──────────────────────────────────────────────────────────────────
 INSERT INTO dashboard_agents (id, name, email, role, status, active_conversations, total_attendances, satisfaction_score, created_at) VALUES
-  ('ag-001', 'Ana Silva', 'ana.silva@demo.com', 'agent', 'online',  5, 142, 4.8, NOW() - INTERVAL '60 days'),
-  ('ag-002', 'Bruno Costa', 'bruno.costa@demo.com', 'agent', 'online', 3, 98, 4.5, NOW() - INTERVAL '55 days'),
-  ('ag-003', 'Carla Mendes', 'carla.mendes@demo.com', 'supervisor', 'online', 2, 210, 4.9, NOW() - INTERVAL '90 days'),
-  ('ag-004', 'Diego Santos', 'diego.santos@demo.com', 'agent', 'offline', 0, 67, 4.2, NOW() - INTERVAL '40 days'),
-  ('ag-005', 'Eva Oliveira', 'eva.oliveira@demo.com', 'agent', 'offline', 0, 45, 4.0, NOW() - INTERVAL '30 days'),
-  ('ag-006', 'Felipe Souza', 'felipe.souza@demo.com', 'admin', 'online', 1, 30, 4.7, NOW() - INTERVAL '20 days')
+  ('ag-001', 'Ana Silva', 'ana.silva@demo.com', 'agent', 'online',  5, 142, 96, NOW() - INTERVAL '60 days'),
+  ('ag-002', 'Bruno Costa', 'bruno.costa@demo.com', 'agent', 'online', 3, 98, 90, NOW() - INTERVAL '55 days'),
+  ('ag-003', 'Carla Mendes', 'carla.mendes@demo.com', 'supervisor', 'online', 2, 210, 98, NOW() - INTERVAL '90 days'),
+  ('ag-004', 'Diego Santos', 'diego.santos@demo.com', 'agent', 'offline', 0, 67, 84, NOW() - INTERVAL '40 days'),
+  ('ag-005', 'Eva Oliveira', 'eva.oliveira@demo.com', 'agent', 'offline', 0, 45, 80, NOW() - INTERVAL '30 days'),
+  ('ag-006', 'Felipe Souza', 'felipe.souza@demo.com', 'admin', 'online', 1, 30, 94, NOW() - INTERVAL '20 days')
 ON CONFLICT DO NOTHING;
 
 -- ─── Clients ─────────────────────────────────────────────────────────────────
@@ -75,16 +75,16 @@ END $$;
 
 -- ─── Attendances ─────────────────────────────────────────────────────────────
 INSERT INTO dashboard_attendances (id, conversation_id, client_id, client_name, agent_id, agent_name, status, channel, started_at, ended_at, duration_seconds, notes, created_at) VALUES
-  ('att-001', 'conv-001', 'cl-001', 'Mercado Central', 'ag-001', 'Ana Silva', 'finished', 'WhatsApp', NOW() - INTERVAL '5 days', NOW() - INTERVAL '5 days' + INTERVAL '12 minutes', 720, 'Cliente satisfeito com a resolução', NOW() - INTERVAL '5 days'),
-  ('att-002', 'conv-002', 'cl-003', 'Farmácia Saúde', 'ag-003', 'Carla Mendes', 'finished', 'WhatsApp', NOW() - INTERVAL '4 days', NOW() - INTERVAL '4 days' + INTERVAL '8 minutes', 480, 'Dúvida sobre faturamento esclarecida', NOW() - INTERVAL '4 days'),
-  ('att-003', 'conv-003', 'cl-005', 'Tech Solutions', 'ag-002', 'Bruno Costa', 'active', 'Web Chat', NOW() - INTERVAL '10 minutes', NULL, NULL, 'Em atendimento', NOW() - INTERVAL '10 minutes'),
-  ('att-004', 'conv-004', 'cl-002', 'João Pereira', 'ag-006', 'Felipe Souza', 'pending', 'WhatsApp', NULL, NULL, NULL, 'Aguardando atribuição', NOW() - INTERVAL '30 minutes'),
-  ('att-005', 'conv-005', 'cl-008', 'Loja Fashion', 'ag-001', 'Ana Silva', 'finished', 'WhatsApp', NOW() - INTERVAL '3 days', NOW() - INTERVAL '3 days' + INTERVAL '15 minutes', 900, 'Upgrade de plano realizado', NOW() - INTERVAL '3 days'),
-  ('att-006', 'conv-006', 'cl-007', 'Carlos Eduardo', 'ag-004', 'Diego Santos', 'finished', 'Email', NOW() - INTERVAL '2 days', NOW() - INTERVAL '2 days' + INTERVAL '5 minutes', 300, 'Problema técnico resolvido', NOW() - INTERVAL '2 days'),
-  ('att-007', 'conv-007', 'cl-010', 'Construtora Horizonte', 'ag-003', 'Carla Mendes', 'finished', 'WhatsApp', NOW() - INTERVAL '1 day', NOW() - INTERVAL '1 day' + INTERVAL '20 minutes', 1200, 'Reunião agendada para próxima semana', NOW() - INTERVAL '1 day'),
-  ('att-008', 'conv-008', 'cl-001', 'Mercado Central', 'ag-002', 'Bruno Costa', 'active', 'WhatsApp', NOW() - INTERVAL '5 minutes', NULL, NULL, 'Cliente relatando problema com integração', NOW() - INTERVAL '5 minutes'),
-  ('att-009', 'conv-009', 'cl-004', 'Maria Fernandes', 'ag-005', 'Eva Oliveira', 'pending', 'SMS', NULL, NULL, NULL, 'Solicita contato', NOW() - INTERVAL '2 hours'),
-  ('att-010', 'conv-010', 'cl-006', 'Restaurante Bom Sabor', 'ag-001', 'Ana Silva', 'finished', 'WhatsApp', NOW() - INTERVAL '7 days', NOW() - INTERVAL '7 days' + INTERVAL '3 minutes', 180, 'Cliente inativo, tentativa de reativamento', NOW() - INTERVAL '7 days')
+  ('att-001', 'conv-001', 'cl-001', 'Mercado Central', 'ag-001', 'Ana Silva', 'resolved', 'WhatsApp', NOW() - INTERVAL '5 days', NOW() - INTERVAL '5 days' + INTERVAL '12 minutes', 720, 'Cliente satisfeito com a resolução', NOW() - INTERVAL '5 days'),
+  ('att-002', 'conv-002', 'cl-003', 'Farmácia Saúde', 'ag-003', 'Carla Mendes', 'resolved', 'WhatsApp', NOW() - INTERVAL '4 days', NOW() - INTERVAL '4 days' + INTERVAL '8 minutes', 480, 'Dúvida sobre faturamento esclarecida', NOW() - INTERVAL '4 days'),
+  ('att-003', 'conv-003', 'cl-005', 'Tech Solutions', 'ag-002', 'Bruno Costa', 'open', 'Web Chat', NOW() - INTERVAL '10 minutes', NULL, NULL, 'Em atendimento', NOW() - INTERVAL '10 minutes'),
+  ('att-004', 'conv-004', 'cl-002', 'João Pereira', 'ag-006', 'Felipe Souza', 'escalated', 'WhatsApp', NULL, NULL, NULL, 'Aguardando atribuição', NOW() - INTERVAL '30 minutes'),
+  ('att-005', 'conv-005', 'cl-008', 'Loja Fashion', 'ag-001', 'Ana Silva', 'resolved', 'WhatsApp', NOW() - INTERVAL '3 days', NOW() - INTERVAL '3 days' + INTERVAL '15 minutes', 900, 'Upgrade de plano realizado', NOW() - INTERVAL '3 days'),
+  ('att-006', 'conv-006', 'cl-007', 'Carlos Eduardo', 'ag-004', 'Diego Santos', 'resolved', 'WhatsApp', NOW() - INTERVAL '2 days', NOW() - INTERVAL '2 days' + INTERVAL '5 minutes', 300, 'Problema técnico resolvido', NOW() - INTERVAL '2 days'),
+  ('att-007', 'conv-007', 'cl-010', 'Construtora Horizonte', 'ag-003', 'Carla Mendes', 'resolved', 'WhatsApp', NOW() - INTERVAL '1 day', NOW() - INTERVAL '1 day' + INTERVAL '20 minutes', 1200, 'Reunião agendada para próxima semana', NOW() - INTERVAL '1 day'),
+  ('att-008', 'conv-008', 'cl-001', 'Mercado Central', 'ag-002', 'Bruno Costa', 'open', 'WhatsApp', NOW() - INTERVAL '5 minutes', NULL, NULL, 'Cliente relatando problema com integração', NOW() - INTERVAL '5 minutes'),
+  ('att-009', 'conv-009', 'cl-004', 'Maria Fernandes', 'ag-005', 'Eva Oliveira', 'escalated', 'WhatsApp', NULL, NULL, NULL, 'Solicita contato', NOW() - INTERVAL '2 hours'),
+  ('att-010', 'conv-010', 'cl-006', 'Restaurante Bom Sabor', 'ag-001', 'Ana Silva', 'resolved', 'WhatsApp', NOW() - INTERVAL '7 days', NOW() - INTERVAL '7 days' + INTERVAL '3 minutes', 180, 'Cliente inativo, tentativa de reativamento', NOW() - INTERVAL '7 days')
 ON CONFLICT DO NOTHING;
 
 -- ─── Users ───────────────────────────────────────────────────────────────────
@@ -162,8 +162,8 @@ END $$;
 -- ─── Integrations ────────────────────────────────────────────────────────────
 INSERT INTO dashboard_integrations (id, name, type, description, is_active, status, icon, connected_at, created_at) VALUES
   ('int-001', 'Evolution API', 'whatsapp', 'Conexão WhatsApp via Evolution API', true, 'connected', 'whatsapp', NOW() - INTERVAL '30 days', NOW() - INTERVAL '30 days'),
-  ('int-002', 'OpenAI', 'ai', 'GPT-4 para respostas automáticas', true, 'connected', 'ai', NOW() - INTERVAL '25 days', NOW() - INTERVAL '25 days'),
-  ('int-003', 'SendGrid', 'email', 'Servidor de e-mail transacional', false, 'disconnected', 'email', NULL, NOW() - INTERVAL '20 days'),
-  ('int-004', 'Stripe', 'payment', 'Processamento de pagamentos', true, 'connected', 'payment', NOW() - INTERVAL '15 days', NOW() - INTERVAL '15 days'),
-  ('int-005', 'Twilio SMS', 'sms', 'Envio de SMS automatizado', false, 'disconnected', 'sms', NULL, NOW() - INTERVAL '10 days')
+  ('int-002', 'OpenAI', 'openai', 'GPT-4 para respostas automáticas', true, 'connected', 'openai', NOW() - INTERVAL '25 days', NOW() - INTERVAL '25 days'),
+  ('int-003', 'SendGrid', 'slack', 'Servidor de e-mail transacional', false, 'disconnected', 'slack', NULL, NOW() - INTERVAL '20 days'),
+  ('int-004', 'Stripe', 'stripe', 'Processamento de pagamentos', true, 'connected', 'stripe', NOW() - INTERVAL '15 days', NOW() - INTERVAL '15 days'),
+  ('int-005', 'Twilio SMS', 'webhook', 'Envio de SMS automatizado', false, 'disconnected', 'webhook', NULL, NOW() - INTERVAL '10 days')
 ON CONFLICT DO NOTHING;

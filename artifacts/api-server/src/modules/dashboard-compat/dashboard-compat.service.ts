@@ -415,7 +415,7 @@ export class DashboardCompatService {
     const typeDescriptions: Record<string, (r: any) => string> = {
       conversation: (r) => `Conversa ${r.status === 'open' ? 'aberta' : r.status === 'closed' ? 'fechada' : 'pendente'}`,
       client: (r) => `Cliente ${r.status === 'active' ? 'ativo' : 'inativo'}`,
-      attendance: (r) => `Atendimento ${r.status === 'pending' ? 'iniciado' : r.status === 'active' ? 'em andamento' : 'finalizado'}`,
+      attendance: (r) => `Atendimento ${r.status === 'open' ? 'em andamento' : r.status === 'resolved' ? 'finalizado' : 'escalado'}`,
     };
     return rows.map(r => ({
       id: r.id,
