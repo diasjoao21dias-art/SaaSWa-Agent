@@ -22,7 +22,6 @@ export function useMessages(conversationId: string | null) {
       return res.json() as Promise<ChatMessage[]>;
     },
     enabled: !!conversationId,
-    refetchInterval: 5000,
   });
 }
 

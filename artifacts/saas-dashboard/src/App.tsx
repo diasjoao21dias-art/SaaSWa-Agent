@@ -21,6 +21,7 @@ import Reports from '@/pages/reports';
 import Settings from '@/pages/settings';
 import Login from '@/pages/login';
 import { SubscriptionBlock } from '@/components/subscription-block';
+import { useSocketSubscription } from '@/application/use-cases/use-socket';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -29,6 +30,7 @@ const queryClient = new QueryClient({
 });
 
 function DashboardLayout() {
+  useSocketSubscription();
   return (
     <div className="flex h-screen w-full overflow-hidden">
       <Sidebar />

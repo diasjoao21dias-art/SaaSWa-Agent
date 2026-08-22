@@ -4,6 +4,7 @@
  */
 import { useState, useRef, useEffect } from 'react';
 import { useMessages, useSendMessage } from '@/application/use-cases/use-messages';
+import { useSocketMessages } from '@/application/use-cases/use-socket';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -21,6 +22,8 @@ interface ChatPanelProps {
 export function ChatPanel({ conversationId, clientName, onClose }: ChatPanelProps) {
   const { data: messages = [], isLoading } = useMessages(conversationId);
   const { mutate: sendMessage, isPending } = useSendMessage(conversationId);
+  // Real-time updates via WebSocket (no polling)
+  useSocketMessages(conversationId);
   const [input, setInput] = useState('');
   const scrollRef = useRef<HTMLDivElement>(null);
 

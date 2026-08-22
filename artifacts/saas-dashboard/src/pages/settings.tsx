@@ -1,7 +1,8 @@
 /**
  * Settings — configurações da conta em 4 abas:
  * Geral | Notificações | Segurança | WhatsApp
- * All settings now persist to the backend via /api/settings
+ * All settings persist to the backend via /api/settings
+ * WhatsApp tab connects to real Evolution API
  */
 import { useState, useEffect } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -9,43 +10,11 @@ import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Switch } from '@/components/ui/switch';
 import { Separator } from '@/components/ui/separator';
 import { useToast } from '@/hooks/use-toast';
 import { useSettings, useUpdateSettings, type DashboardSettings } from '@/application/use-cases/use-settings';
-import { Save, Shield, Bell, Settings2, MessageSquare, Wifi, Loader2 } from 'lucide-react';
-
-function SectionCard({ children }: { children: React.ReactNode }) {
-  return (
-    <div className="bg-card border border-card-border rounded-xl p-5 space-y-4">{children}</div>
-  );
-}
-
-function SectionTitle({ icon: Icon, title, description }: { icon: React.ElementType; title: string; description?: string }) {
-  return (
-    <div className="flex items-start gap-3 pb-2">
-      <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center shrink-0 mt-0.5">
-        <Icon className="w-4 h-4 text-primary" />
-      </div>
-      <div>
-        <h3 className="text-sm font-semibold text-foreground">{title}</h3>
-        {description && <p className="text-xs text-muted-foreground mt-0.5">{description}</p>}
-      </div>
-    </div>
-  );
-}
-
-function NotifRow({ title, description, checked, onChange }: { title: string; description: string; checked: boolean; onChange: (v: boolean) => void }) {
-  return (
-    <div className="flex items-center justify-between gap-4 py-1">
-      <div className="flex-1 min-w-0">
-        <p className="text-sm font-medium text-foreground">{title}</p>
-        <p className="text-xs text-muted-foreground mt-0.5">{description}</p>
-      </div>
-      <Switch checked={checked} onCheckedChange={onChange} className="shrink-0" />
-    </div>
-  );
-}
+import { SectionCard, SectionTitle, NotifRow, WhatsappTab } from './settings-sections';
+import { Save, Shield, Bell, Settings2, Loader2 } from 'lucide-react';
 
 export default function Settings() {
   const { toast } = useToast();
@@ -243,87 +212,7 @@ export default function Settings() {
 
         {/* ── WhatsApp ──────────────────────────────────────────────────── */}
         <TabsContent value="whatsapp" className="mt-4 space-y-4">
-          <SectionCard>
-            <SectionTitle icon={MessageSquare} title="Evolution API" description="Configurações do gateway WhatsApp" />
-            <Separator />
-
-            {/* Connection status */}
-            <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/40">
-              <div className={`w-3 h-3 rounded-full ${form.whatsappConnected ? 'bg-emerald-500' : 'bg-slate-400'}`} />
-              <div className="flex-1">
-                <p className="text-sm font-medium text-foreground">
-                  {form.whatsappConnected ? 'WhatsApp Conectado' : 'WhatsApp Desconectado'}
-                </p>
-                {form.whatsappPhone && (
-                  <p className="text-xs text-muted-foreground">{form.whatsappPhone}</p>
-                )}
-              </div>
-              <Button
-                variant={form.whatsappConnected ? 'destructive' : 'default'}
-                size="sm"
-                onClick={() => save(
-                  { whatsappConnected: !form.whatsappConnected, whatsappPhone: !form.whatsappConnected ? '+55 11 98765-4321' : '' },
-                  { onSuccess: () => toast({ title: form.whatsappConnected ? 'WhatsApp desconectado' : 'WhatsApp conectado!' }) },
-                )}
-                disabled={isPending}
-              >
-                {isPending ? <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" /> : <Wifi className="w-3.5 h-3.5 mr-1.5" />}
-                {form.whatsappConnected ? 'Desconectar' : 'Conectar'}
-              </Button>
-            </div>
-
-            {!form.whatsappConnected && (
-              <div className="flex flex-col items-center gap-3 p-6 border-2 border-dashed border-border rounded-lg">
-                <div className="w-32 h-32 bg-muted/60 rounded-lg flex items-center justify-center">
-                  <div className="space-y-1">
-                    {Array.from({ length: 8 }).map((_, i) => (
-                      <div key={i} className="flex gap-1">
-                        {Array.from({ length: 8 }).map((_, j) => (
-                          <div key={j} className={`w-3 h-3 rounded-sm ${Math.random() > 0.5 ? 'bg-foreground' : 'bg-transparent'}`} />
-                        ))}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-                <p className="text-xs text-muted-foreground text-center">
-                  Escaneie o QR Code com seu WhatsApp<br />para conectar a Evolution API
-                </p>
-              </div>
-            )}
-
-            <Separator />
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div className="space-y-1.5 sm:col-span-2">
-                <Label htmlFor="evolutionUrl">URL da Evolution API</Label>
-                <Input id="evolutionUrl" value={form.evolutionUrl ?? ''} onChange={(e) => update('evolutionUrl', e.target.value)} placeholder="https://evolution.aiagent.com" />
-              </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="evolutionKey">Chave de API</Label>
-                <Input id="evolutionKey" type="password" value={form.evolutionKey ?? ''} onChange={(e) => update('evolutionKey', e.target.value)} placeholder="evolution_api_key_…" />
-              </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="webhookSecret">Webhook Secret (HMAC)</Label>
-                <Input id="webhookSecret" type="password" value={form.webhookSecret ?? ''} onChange={(e) => update('webhookSecret', e.target.value)} placeholder="min. 16 caracteres" />
-              </div>
-            </div>
-            <Button onClick={() => handleSave('WhatsApp', form)} disabled={isPending} data-testid="button-save-whatsapp">
-              {isPending ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Save className="w-4 h-4 mr-2" />} Salvar Configurações
-            </Button>
-          </SectionCard>
-
-          <SectionCard>
-            <SectionTitle icon={MessageSquare} title="Comportamento do Bot" />
-            <Separator />
-            <div className="space-y-3 divide-y divide-border">
-              <NotifRow title="Reconectar automaticamente" description="Tenta reconectar instâncias desconectadas" checked={form.botAutoReconnect ?? true} onChange={(v) => update('botAutoReconnect', v)} />
-              <NotifRow title="Escalar após silêncio do bot" description="Encaminha para humano se bot não responder em 60s" checked={form.botEscalateSilence ?? true} onChange={(v) => update('botEscalateSilence', v)} />
-              <NotifRow title="Registrar todas as mensagens" description="Salva histórico completo de conversas" checked={form.botLogAll ?? true} onChange={(v) => update('botLogAll', v)} />
-            </div>
-            <Button onClick={() => handleSave('Bot', form)} disabled={isPending}>
-              {isPending ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Save className="w-4 h-4 mr-2" />} Salvar
-            </Button>
-          </SectionCard>
+          <WhatsappTab form={form} update={update} onSave={handleSave} isPending={isPending} toast={toast} />
         </TabsContent>
       </Tabs>
     </div>

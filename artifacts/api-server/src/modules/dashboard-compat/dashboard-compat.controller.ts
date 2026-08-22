@@ -12,13 +12,18 @@ import { ApiTags } from '@nestjs/swagger';
 import { Public } from '../../common/decorators/public.decorator';
 import { RawResponse } from '../../common/decorators/raw-response.decorator';
 import { DashboardCompatService } from './dashboard-compat.service';
+import { StripeService } from './stripe.service';
+import { Req } from '@nestjs/common';
 
 @ApiTags('dashboard-compat')
 @Public()
 @RawResponse()
 @Controller({ version: VERSION_NEUTRAL }) // opt-out of global URI versioning — routes at /api/* (no /v1/)
 export class DashboardCompatController {
-  constructor(private readonly svc: DashboardCompatService) {}
+  constructor(
+    private readonly svc: DashboardCompatService,
+    private readonly stripe: StripeService,
+  ) {}
 
   // ─── Health ─────────────────────────────────────────────────────────────────
   @Get('healthz')
@@ -197,5 +202,39 @@ export class DashboardCompatController {
   @HttpCode(HttpStatus.OK)
   updateSubscriptionStatus(@Body() body: any) {
     return this.svc.updateSettings({ subscriptionStatus: body.status });
+  }
+
+  // ─── WhatsApp (Evolution API) ──────────────────────────────────────────────
+  @Post('whatsapp/connect')
+  connectWhatsapp() { return this.svc.connectWhatsapp(); }
+
+  @Get('whatsapp/status')
+  getWhatsappStatus() { return this.svc.getWhatsappStatus(); }
+
+  @Post('whatsapp/disconnect')
+  disconnectWhatsapp() { return this.svc.disconnectWhatsapp(); }
+
+  // ─── Stripe Billing ─────────────────────────────────────────────────────────
+  @Get('stripe/config')
+  getStripeConfig() {
+    return { publishableKey: this.stripe.getPublishableKey(), configured: this.stripe.isConfigured() };
+  }
+
+  @Post('stripe/checkout')
+  createCheckout(@Body() body: any) {
+    return this.stripe.createCheckoutSession(body.planId, body.planName, body.amount, body.interval);
+  }
+
+  @Post('stripe/portal')
+  createPortal() {
+    return this.stripe.createPortalSession();
+  }
+
+  @Post('webhooks/stripe')
+  @HttpCode(HttpStatus.OK)
+  handleStripeWebhook(@Req() req: any, @Body() _body: any) {
+    const signature = req.headers['stripe-signature'] as string;
+    const rawBody = req.rawBody as Buffer;
+    return this.stripe.handleWebhook(rawBody, signature);
   }
 }

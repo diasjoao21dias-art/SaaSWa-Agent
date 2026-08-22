@@ -2,12 +2,20 @@
 // DashboardCompatService — serves the Express-era dashboard API routes
 // reads from dashboard_* tables (Drizzle schema, same DB) via Prisma $queryRaw
 // =============================================================================
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
+import { EvolutionApiService } from '../../evolution/evolution-api.service';
+import { EventsGateway } from './events.gateway';
 
 @Injectable()
 export class DashboardCompatService {
-  constructor(private readonly prisma: PrismaService) {}
+  private readonly logger = new Logger(DashboardCompatService.name);
+
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly evolution: EvolutionApiService,
+    private readonly events: EventsGateway,
+  ) {}
 
   // ─── Conversations ──────────────────────────────────────────────────────────
   async listConversations(params: { status?: string; agentId?: string; clientId?: string }) {
@@ -527,7 +535,68 @@ export class DashboardCompatService {
       data.content.slice(0, 100), conversationId
     );
     const rows: any[] = await this.prisma.$queryRawUnsafe(`SELECT * FROM dashboard_messages WHERE id = $1`, id);
-    return rows[0] ? { id: rows[0].id, conversationId: rows[0].conversation_id, sender: rows[0].sender, content: rows[0].content, createdAt: rows[0].created_at } : null;
+    const result = rows[0] ? { id: rows[0].id, conversationId: rows[0].conversation_id, sender: rows[0].sender, content: rows[0].content, createdAt: rows[0].created_at } : null;
+    // Broadcast via WebSocket for real-time updates
+    if (result) {
+      this.events.emitNewMessage(conversationId, result);
+    }
+    return result;
+  }
+
+  // ─── WhatsApp (Evolution API) ───────────────────────────────────────────────
+  async connectWhatsapp() {
+    const instanceName = `tenant-default-${Date.now()}`;
+    try {
+      const res = await this.evolution.createInstance(instanceName);
+      const qrCode = res.qrcode?.base64 ?? '';
+      const pairCode = res.qrcode?.pairingCode ?? null;
+      // Save instance name in settings
+      await this.prisma.$executeRawUnsafe(
+        `UPDATE dashboard_settings SET whatsapp_connected = false, whatsapp_phone = $1, updated_at = now() WHERE id = 'default'`,
+        instanceName,
+      );
+      return { instance: instanceName, qrCode, pairCode, status: 'connecting' };
+    } catch (err) {
+      this.logger.warn(`Evolution API connect failed: ${err instanceof Error ? err.message : String(err)}`);
+      return { error: err instanceof Error ? err.message : 'Evolution API not available. Make sure the server is running.' };
+    }
+  }
+
+  async getWhatsappStatus() {
+    const rows: any[] = await this.prisma.$queryRawUnsafe(
+      `SELECT whatsapp_connected, whatsapp_phone FROM dashboard_settings WHERE id = 'default'`,
+    );
+    const connected = rows[0]?.whatsapp_connected ?? false;
+    const phone = rows[0]?.whatsapp_phone ?? '';
+    if (!phone) return { connected: false, instance: null, state: 'disconnected' };
+    try {
+      const state = await this.evolution.getConnectionState(phone);
+      const stateValue = state.instance?.state ?? 'close';
+      const isConnected = stateValue === 'open';
+      if (isConnected !== connected) {
+        await this.prisma.$executeRawUnsafe(
+          `UPDATE dashboard_settings SET whatsapp_connected = $1, updated_at = now() WHERE id = 'default'`,
+          isConnected,
+        );
+      }
+      return { connected: isConnected, instance: phone, state: stateValue };
+    } catch {
+      return { connected, instance: phone, state: connected ? 'open' : 'disconnected' };
+    }
+  }
+
+  async disconnectWhatsapp() {
+    const rows: any[] = await this.prisma.$queryRawUnsafe(
+      `SELECT whatsapp_phone FROM dashboard_settings WHERE id = 'default'`,
+    );
+    const instance = rows[0]?.whatsapp_phone ?? '';
+    if (instance) {
+      try { await this.evolution.disconnectInstance(instance); } catch { /* ignore */ }
+    }
+    await this.prisma.$executeRawUnsafe(
+      `UPDATE dashboard_settings SET whatsapp_connected = false, whatsapp_phone = '', updated_at = now() WHERE id = 'default'`,
+    );
+    return { disconnected: true };
   }
 
   // ─── Subscription status ────────────────────────────────────────────────────
