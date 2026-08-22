@@ -2,10 +2,12 @@
  * NotificationDropdown — popover that shows recent activity as notifications.
  * Fetches from /api/dashboard/activity and displays the latest items.
  */
+import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { useLocation } from 'wouter';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Button } from '@/components/ui/button';
-import { Bell } from 'lucide-react';
+import { Bell, ChevronRight } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { formatDistanceToNow } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -27,7 +29,15 @@ const TYPE_EMOJI: Record<string, string> = {
   attendance: '🎧',
 };
 
+const TYPE_ROUTE: Record<string, string> = {
+  conversation: '/conversations',
+  client: '/clients',
+  attendance: '/attendances',
+};
+
 export function NotificationDropdown() {
+  const [, navigate] = useLocation();
+  const [open, setOpen] = useState(false);
   const { data: notifications = [], isLoading } = useQuery<ActivityItem[]>({
     queryKey: ['notifications'],
     queryFn: async () => {
@@ -41,7 +51,7 @@ export function NotificationDropdown() {
   const unread = Math.min(notifications.length, 4);
 
   return (
-    <Popover>
+    <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
         <Button
           variant="ghost"
@@ -74,26 +84,34 @@ export function NotificationDropdown() {
           ) : notifications.length === 0 ? (
             <div className="px-4 py-6 text-center text-sm text-muted-foreground">Nenhuma notificação</div>
           ) : (
-            notifications.slice(0, 8).map((n) => (
-              <div
-                key={n.id}
-                className="flex items-start gap-3 px-4 py-3 hover:bg-accent/40 transition-colors border-b border-border last:border-0"
-              >
-                <div className="w-7 h-7 rounded-full bg-primary/10 flex items-center justify-center shrink-0 mt-0.5">
-                  <span className="text-xs">{TYPE_EMOJI[n.type] ?? '🔔'}</span>
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-foreground leading-tight truncate">{n.title}</p>
-                  <p className="text-xs text-muted-foreground mt-0.5 truncate">{n.description}</p>
-                  <div className="flex items-center gap-2 mt-1">
-                    {n.actor && <span className="text-[11px] text-muted-foreground/70">por {n.actor}</span>}
-                    <span className="text-[11px] text-muted-foreground/70">
-                      {formatDistanceToNow(new Date(n.createdAt), { addSuffix: true, locale: ptBR })}
-                    </span>
+            notifications.slice(0, 8).map((n) => {
+              const route = TYPE_ROUTE[n.type];
+              return (
+                <button
+                  key={n.id}
+                  onClick={() => { if (route) { navigate(route); setOpen(false); } }}
+                  className={cn(
+                    'w-full flex items-start gap-3 px-4 py-3 hover:bg-accent/40 transition-colors border-b border-border last:border-0 text-left',
+                    route && 'cursor-pointer',
+                  )}
+                >
+                  <div className="w-7 h-7 rounded-full bg-primary/10 flex items-center justify-center shrink-0 mt-0.5">
+                    <span className="text-xs">{TYPE_EMOJI[n.type] ?? '🔔'}</span>
                   </div>
-                </div>
-              </div>
-            ))
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-foreground leading-tight truncate">{n.title}</p>
+                    <p className="text-xs text-muted-foreground mt-0.5 truncate">{n.description}</p>
+                    <div className="flex items-center gap-2 mt-1">
+                      {n.actor && <span className="text-[11px] text-muted-foreground/70">por {n.actor}</span>}
+                      <span className="text-[11px] text-muted-foreground/70">
+                        {formatDistanceToNow(new Date(n.createdAt), { addSuffix: true, locale: ptBR })}
+                      </span>
+                    </div>
+                  </div>
+                  {route && <ChevronRight className="w-4 h-4 text-muted-foreground/40 shrink-0 mt-1.5" />}
+                </button>
+              );
+            })
           )}
         </div>
       </PopoverContent>
