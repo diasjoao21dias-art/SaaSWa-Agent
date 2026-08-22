@@ -9,23 +9,32 @@ import { Bell } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { formatDistanceToNow } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { getDashboardActivity } from '@workspace/api-client-react';
 
-const TYPE_ICONS: Record<string, string> = {
-  conversation: '💬',
-  client: '👤',
-  attendance: ' headset',
-};
+const BASE = import.meta.env.BASE_URL.replace(/\/$/, '');
 
-async function fetchNotifications() {
-  const items = await getDashboardActivity() as any[];
-  return items;
+interface ActivityItem {
+  id: string;
+  type: string;
+  title: string;
+  description: string;
+  actor: string | null;
+  createdAt: string;
 }
 
+const TYPE_EMOJI: Record<string, string> = {
+  conversation: '💬',
+  client: '👤',
+  attendance: '🎧',
+};
+
 export function NotificationDropdown() {
-  const { data: notifications = [], isLoading } = useQuery({
+  const { data: notifications = [], isLoading } = useQuery<ActivityItem[]>({
     queryKey: ['notifications'],
-    queryFn: fetchNotifications,
+    queryFn: async () => {
+      const res = await fetch(`${BASE}/api/dashboard/activity`);
+      if (!res.ok) return [];
+      return res.json();
+    },
     refetchInterval: 30000,
   });
 
@@ -71,7 +80,7 @@ export function NotificationDropdown() {
                 className="flex items-start gap-3 px-4 py-3 hover:bg-accent/40 transition-colors border-b border-border last:border-0"
               >
                 <div className="w-7 h-7 rounded-full bg-primary/10 flex items-center justify-center shrink-0 mt-0.5">
-                  <span className="text-xs">{TYPE_ICONS[n.type] ?? '🔔'}</span>
+                  <span className="text-xs">{TYPE_EMOJI[n.type] ?? '🔔'}</span>
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium text-foreground leading-tight truncate">{n.title}</p>

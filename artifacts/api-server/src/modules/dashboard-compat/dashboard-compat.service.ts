@@ -448,6 +448,94 @@ export class DashboardCompatService {
     return rows.map(r => ({ label: r.label, value: Number(r.value) }));
   }
 
+  // ─── Settings ─────────────────────────────────────────────────────────────────
+  async getSettings() {
+    const rows: any[] = await this.prisma.$queryRawUnsafe(`SELECT * FROM dashboard_settings WHERE id = 'default'`);
+    if (!rows[0]) {
+      await this.prisma.$executeRawUnsafe(`INSERT INTO dashboard_settings (id) VALUES ('default') ON CONFLICT DO NOTHING`);
+      const retry: any[] = await this.prisma.$queryRawUnsafe(`SELECT * FROM dashboard_settings WHERE id = 'default'`);
+      return this.mapSettings(retry[0]);
+    }
+    return this.mapSettings(rows[0]);
+  }
+
+  async updateSettings(data: any) {
+    const fields = [
+      'company_name', 'website', 'support_email', 'phone',
+      'timezone', 'language', 'date_format', 'time_format',
+      'notif_new_conversation', 'notif_agent_assignment', 'notif_escalation',
+      'notif_payment_update', 'notif_agent_offline', 'notif_weekly_report', 'notif_conversation_limit',
+      'twofa_enabled', 'login_notification',
+      'evolution_url', 'evolution_key', 'webhook_secret',
+      'whatsapp_connected', 'whatsapp_phone',
+      'bot_auto_reconnect', 'bot_escalate_silence', 'bot_log_all',
+      'subscription_status',
+    ];
+    const sets: string[] = ['updated_at = now()'];
+    const vals: any[] = [];
+    let i = 1;
+    for (const f of fields) {
+      const camelKey = f.replace(/_([a-z])/g, (_, c) => c.toUpperCase());
+      if (data[camelKey] !== undefined) { sets.push(`${f} = $${i++}`); vals.push(data[camelKey]); }
+      if (data[f] !== undefined) { sets.push(`${f} = $${i++}`); vals.push(data[f]); }
+    }
+    vals.push('default');
+    await this.prisma.$executeRawUnsafe(
+      `UPDATE dashboard_settings SET ${sets.join(', ')} WHERE id = $${i}`, ...vals
+    );
+    return this.getSettings();
+  }
+
+  private mapSettings(r: any) {
+    return {
+      companyName: r.company_name, website: r.website, supportEmail: r.support_email, phone: r.phone,
+      timezone: r.timezone, language: r.language, dateFormat: r.date_format, timeFormat: r.time_format,
+      notifNewConversation: r.notif_new_conversation, notifAgentAssignment: r.notif_agent_assignment,
+      notifEscalation: r.notif_escalation, notifPaymentUpdate: r.notif_payment_update,
+      notifAgentOffline: r.notif_agent_offline, notifWeeklyReport: r.notif_weekly_report,
+      notifConversationLimit: r.notif_conversation_limit,
+      twofaEnabled: r.twofa_enabled, loginNotification: r.login_notification,
+      evolutionUrl: r.evolution_url, evolutionKey: r.evolution_key, webhookSecret: r.webhook_secret,
+      whatsappConnected: r.whatsapp_connected, whatsappPhone: r.whatsapp_phone,
+      botAutoReconnect: r.bot_auto_reconnect, botEscalateSilence: r.bot_escalate_silence, botLogAll: r.bot_log_all,
+      subscriptionStatus: r.subscription_status,
+      updatedAt: r.updated_at,
+    };
+  }
+
+  // ─── Messages (chat) ───────────────────────────────────────────────────────
+  async listMessages(conversationId: string) {
+    const rows: any[] = await this.prisma.$queryRawUnsafe(
+      `SELECT * FROM dashboard_messages WHERE conversation_id = $1 ORDER BY created_at ASC`, conversationId
+    );
+    return rows.map(r => ({
+      id: r.id, conversationId: r.conversation_id, sender: r.sender,
+      content: r.content, createdAt: r.created_at,
+    }));
+  }
+
+  async sendMessage(conversationId: string, data: any) {
+    const { v4: uuidv4 } = await import('uuid');
+    const id = uuidv4();
+    await this.prisma.$executeRawUnsafe(
+      `INSERT INTO dashboard_messages (id, conversation_id, sender, content, created_at) VALUES ($1,$2,$3,$4,now())`,
+      id, conversationId, data.sender || 'agent', data.content
+    );
+    // Update conversation's last_message
+    await this.prisma.$executeRawUnsafe(
+      `UPDATE dashboard_conversations SET last_message = $1, updated_at = now() WHERE id = $2`,
+      data.content.slice(0, 100), conversationId
+    );
+    const rows: any[] = await this.prisma.$queryRawUnsafe(`SELECT * FROM dashboard_messages WHERE id = $1`, id);
+    return rows[0] ? { id: rows[0].id, conversationId: rows[0].conversation_id, sender: rows[0].sender, content: rows[0].content, createdAt: rows[0].created_at } : null;
+  }
+
+  // ─── Subscription status ────────────────────────────────────────────────────
+  async getSubscriptionStatus() {
+    const rows: any[] = await this.prisma.$queryRawUnsafe(`SELECT subscription_status FROM dashboard_settings WHERE id = 'default'`);
+    return { status: rows[0]?.subscription_status ?? 'active' };
+  }
+
   async getChannelBreakdown() {
     const rows: any[] = await this.prisma.$queryRawUnsafe(`
       SELECT channel, COUNT(*) AS count

@@ -4,7 +4,7 @@
 // without auth headers. Reads/writes to dashboard_* tables (Drizzle schema).
 // =============================================================================
 import {
-  Controller, Get, Post, Patch, Delete,
+  Controller, Get, Post, Patch, Put, Delete,
   Body, Param, Query, HttpCode, HttpStatus, NotFoundException,
   VERSION_NEUTRAL,
 } from '@nestjs/common';
@@ -173,5 +173,29 @@ export class DashboardCompatController {
   @Patch('integrations/:id')
   updateIntegration(@Param('id') id: string, @Body() body: any) {
     return this.svc.updateIntegration(id, body);
+  }
+
+  // ─── Settings ──────────────────────────────────────────────────────────────────
+  @Get('settings')
+  getSettings() { return this.svc.getSettings(); }
+
+  @Put('settings')
+  updateSettings(@Body() body: any) { return this.svc.updateSettings(body); }
+
+  // ─── Messages (chat) ──────────────────────────────────────────────────────────
+  @Get('conversations/:id/messages')
+  listMessages(@Param('id') id: string) { return this.svc.listMessages(id); }
+
+  @Post('conversations/:id/messages')
+  sendMessage(@Param('id') id: string, @Body() body: any) { return this.svc.sendMessage(id, body); }
+
+  // ─── Subscription status ───────────────────────────────────────────────────────
+  @Get('subscription-status')
+  getSubscriptionStatus() { return this.svc.getSubscriptionStatus(); }
+
+  @Put('subscription-status')
+  @HttpCode(HttpStatus.OK)
+  updateSubscriptionStatus(@Body() body: any) {
+    return this.svc.updateSettings({ subscriptionStatus: body.status });
   }
 }

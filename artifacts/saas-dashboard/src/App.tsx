@@ -20,6 +20,7 @@ import Integrations from '@/pages/integrations';
 import Reports from '@/pages/reports';
 import Settings from '@/pages/settings';
 import Login from '@/pages/login';
+import { SubscriptionBlock } from '@/components/subscription-block';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -62,7 +63,10 @@ function AppRoutes() {
       <Route path="/login" component={Login} />
       <Route>
         {isAuthenticated
-          ? <DashboardLayout />
+          ? <>
+            <DashboardLayout />
+            <SubscriptionBlock />
+          </>
           : <Redirect to="/login" />}
       </Route>
     </Switch>
