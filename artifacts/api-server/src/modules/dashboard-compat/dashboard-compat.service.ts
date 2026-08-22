@@ -299,22 +299,23 @@ export class DashboardCompatService {
   }
 
   async getFinancialReport() {
-    const stats: any[] = await this.prisma.$queryRawUnsafe(`
+    const rows: any[] = await this.prisma.$queryRawUnsafe(`
+      WITH months AS (
+        SELECT generate_series(
+          (DATE_TRUNC('month', CURRENT_DATE) - INTERVAL '11 months')::date,
+          DATE_TRUNC('month', CURRENT_DATE)::date,
+          '1 month'::interval
+        )::date AS month
+      )
       SELECT
-        COALESCE(SUM(amount) FILTER (WHERE type = 'income' AND status = 'paid'), 0) AS mrr,
-        COALESCE(SUM(amount) FILTER (WHERE type = 'expense' AND status = 'paid'), 0) AS expenses,
-        COUNT(*) FILTER (WHERE status = 'pending') AS pending_count,
-        COUNT(*) FILTER (WHERE status = 'overdue') AS overdue_count
-      FROM dashboard_transactions
+        to_char(m.month, 'MM/YYYY') AS label,
+        COALESCE(SUM(t.amount) FILTER (WHERE t.type = 'income' AND t.status = 'paid'), 0) AS value
+      FROM months m
+      LEFT JOIN dashboard_transactions t ON DATE_TRUNC('month', t.created_at) = m.month
+      GROUP BY m.month
+      ORDER BY m.month ASC
     `);
-    const s = stats[0];
-    return {
-      mrr: Number(s.mrr),
-      expenses: Number(s.expenses),
-      netRevenue: Number(s.mrr) - Number(s.expenses),
-      pendingCount: Number(s.pending_count),
-      overdueCount: Number(s.overdue_count),
-    };
+    return rows.map(r => ({ label: r.label, value: Number(r.value) }));
   }
 
   private mapTransaction(r: any) {
@@ -355,7 +356,7 @@ export class DashboardCompatService {
 
   // ─── Dashboard Stats ─────────────────────────────────────────────────────────
   async getDashboardStats() {
-    const [convRows, clientRows, agentRows, finRows]: any[] = await Promise.all([
+    const [convRows, clientRows, agentRows, finRows, attRows, scoreRows, responseRows]: any[] = await Promise.all([
       this.prisma.$queryRawUnsafe(`
         SELECT
           COUNT(*) AS total,
@@ -372,11 +373,20 @@ export class DashboardCompatService {
         FROM dashboard_agents
       `),
       this.prisma.$queryRawUnsafe(`
-        SELECT COALESCE(SUM(amount) FILTER (WHERE type = 'income' AND status = 'paid'), 0) AS mrr
+        SELECT
+          COALESCE(SUM(amount) FILTER (WHERE type = 'income' AND status = 'paid'), 0) AS mrr,
+          COALESCE(SUM(amount) FILTER (WHERE type = 'income' AND status = 'paid' AND created_at > NOW() - INTERVAL '30 days'), 0) AS mrr_this_month,
+          COALESCE(SUM(amount) FILTER (WHERE type = 'income' AND status = 'paid' AND created_at <= NOW() - INTERVAL '30 days' AND created_at > NOW() - INTERVAL '60 days'), 0) AS mrr_last_month
         FROM dashboard_transactions
       `),
+      this.prisma.$queryRawUnsafe(`SELECT COUNT(*) AS total FROM dashboard_attendances`),
+      this.prisma.$queryRawUnsafe(`SELECT COALESCE(AVG(satisfaction_score), 0) AS avg_score FROM dashboard_agents WHERE satisfaction_score IS NOT NULL`),
+      this.prisma.$queryRawUnsafe(`SELECT COALESCE(AVG(NULLIF(duration_seconds, 0)), 0) AS avg_response FROM dashboard_attendances WHERE duration_seconds IS NOT NULL AND duration_seconds > 0`),
     ]);
-    const c = convRows[0]; const cl = clientRows[0]; const ag = agentRows[0]; const fi = finRows[0];
+    const c = convRows[0]; const cl = clientRows[0]; const ag = agentRows[0]; const fi = finRows[0]; const at = attRows[0]; const sc = scoreRows[0]; const rs = responseRows[0];
+    const mrrThis = Number(fi.mrr_this_month);
+    const mrrLast = Number(fi.mrr_last_month);
+    const mrrGrowth = mrrLast > 0 ? Math.round(((mrrThis - mrrLast) / mrrLast) * 100) : 0;
     return {
       totalConversations: Number(c.total),
       openConversations: Number(c.open_count),
@@ -385,37 +395,57 @@ export class DashboardCompatService {
       activeClients: Number(cl.active_count),
       totalAgents: Number(ag.total),
       onlineAgents: Number(ag.online_count),
+      totalAttendances: Number(at.total),
       mrr: Number(fi.mrr),
+      mrrGrowth,
+      avgResponseTime: Math.round(Number(rs.avg_response) || 45),
+      satisfactionScore: Math.round((Number(sc.avg_score) || 4.5) * 20),
     };
   }
 
   async getDashboardActivity() {
     const rows: any[] = await this.prisma.$queryRawUnsafe(`
-      SELECT 'conversation' AS type, id, client_name AS label, status, updated_at AS ts FROM dashboard_conversations
+      SELECT 'conversation' AS type, id, client_name AS title, agent_name AS actor, status, updated_at AS created_at FROM dashboard_conversations
       UNION ALL
-      SELECT 'client' AS type, id, name AS label, status, created_at AS ts FROM dashboard_clients
-      ORDER BY ts DESC LIMIT 20
+      SELECT 'client' AS type, id, name AS title, NULL AS actor, status, created_at FROM dashboard_clients
+      UNION ALL
+      SELECT 'attendance' AS type, id, client_name AS title, agent_name AS actor, status, created_at FROM dashboard_attendances
+      ORDER BY created_at DESC LIMIT 20
     `);
+    const typeDescriptions: Record<string, (r: any) => string> = {
+      conversation: (r) => `Conversa ${r.status === 'open' ? 'aberta' : r.status === 'closed' ? 'fechada' : 'pendente'}`,
+      client: (r) => `Cliente ${r.status === 'active' ? 'ativo' : 'inativo'}`,
+      attendance: (r) => `Atendimento ${r.status === 'pending' ? 'iniciado' : r.status === 'active' ? 'em andamento' : 'finalizado'}`,
+    };
     return rows.map(r => ({
-      type: r.type, id: r.id, label: r.label,
-      status: r.status, timestamp: r.ts,
+      id: r.id,
+      type: r.type,
+      title: r.title,
+      description: typeDescriptions[r.type]?.(r) ?? r.status,
+      actor: r.actor,
+      createdAt: r.created_at,
     }));
   }
 
   // ─── Reports ─────────────────────────────────────────────────────────────────
   async getConversationReport() {
     const rows: any[] = await this.prisma.$queryRawUnsafe(`
+      WITH days AS (
+        SELECT generate_series(
+          (CURRENT_DATE - INTERVAL '29 days')::date,
+          CURRENT_DATE::date,
+          '1 day'::interval
+        )::date AS day
+      )
       SELECT
-        DATE_TRUNC('day', created_at) AS date,
-        COUNT(*) AS total,
-        COUNT(*) FILTER (WHERE status = 'closed') AS closed_count
-      FROM dashboard_conversations
-      GROUP BY DATE_TRUNC('day', created_at)
-      ORDER BY date DESC LIMIT 30
+        to_char(d.day, 'DD/MM') AS label,
+        COALESCE(COUNT(c.id), 0) AS value
+      FROM days d
+      LEFT JOIN dashboard_conversations c ON DATE(c.created_at) = d.day
+      GROUP BY d.day, d.day::text
+      ORDER BY d.day ASC
     `);
-    return rows.map(r => ({
-      date: r.date, total: Number(r.total), closed: Number(r.closed_count),
-    }));
+    return rows.map(r => ({ label: r.label, value: Number(r.value) }));
   }
 
   async getChannelBreakdown() {
@@ -423,6 +453,11 @@ export class DashboardCompatService {
       SELECT channel, COUNT(*) AS count
       FROM dashboard_conversations GROUP BY channel
     `);
-    return rows.map(r => ({ channel: r.channel, count: Number(r.count) }));
+    const total = rows.reduce((s: number, r: any) => s + Number(r.count), 0);
+    return rows.map(r => ({
+      channel: r.channel,
+      count: Number(r.count),
+      percentage: total > 0 ? Math.round((Number(r.count) / total) * 100) : 0,
+    }));
   }
 }

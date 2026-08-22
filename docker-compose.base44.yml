@@ -19,6 +19,7 @@ services:
       - postgres_data:/var/lib/postgresql/data
       - ./docker/postgres/init.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
       - ./docker/postgres/dashboard-tables.sql:/docker-entrypoint-initdb.d/02-dashboard-tables.sql:ro
+      - ./docker/postgres/dashboard-seed.sql:/docker-entrypoint-initdb.d/03-dashboard-seed.sql:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres -d whatsapp_saas"]
       interval: 10s
