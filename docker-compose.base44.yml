@@ -3,6 +3,7 @@
 #
 # Dev-oriented compose: runs the NestJS API and Vite dashboard FROM SOURCE
 # with live reload, backed by PostgreSQL (pgvector) and Redis.
+# Uses node:20 (glibc) — the pnpm overrides exclude musl platform packages.
 # =============================================================================
 services:
 
@@ -16,7 +17,8 @@ services:
       POSTGRES_PASSWORD: postgres_base44_dev
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      - ./docker/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+      - ./docker/postgres/init.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
+      - ./docker/postgres/dashboard-tables.sql:/docker-entrypoint-initdb.d/02-dashboard-tables.sql:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres -d whatsapp_saas"]
       interval: 10s
@@ -46,8 +48,9 @@ services:
 
   # ── Setup (one-shot) ────────────────────────────────────────────────────────
   # Installs pnpm deps, generates Prisma client, pushes DB schemas, seeds data.
+  # Drizzle push runs BEFORE Prisma push so the DB is empty (no schema conflicts).
   setup:
-    image: node:20-alpine
+    image: node:20
     working_dir: /workspace
     env_file:
       - ./.env.base44-defaults
@@ -56,11 +59,11 @@ services:
       - ./:/workspace
     command: >
       sh -c '
-      corepack enable && corepack prepare pnpm@9 --activate &&
+      corepack enable && corepack prepare pnpm@10 --activate &&
       pnpm install --frozen-lockfile &&
       pnpm --filter @workspace/api-server run prisma:generate &&
       pnpm --filter @workspace/api-server exec prisma db push --schema=./prisma/schema.prisma --accept-data-loss &&
-      pnpm --filter @workspace/db run push-force &&
+      PGPASSWORD=postgres_base44_dev psql -h postgres -U postgres -d whatsapp_saas -f /workspace/docker/postgres/dashboard-tables.sql &&
       pnpm --filter @workspace/api-server run prisma:seed &&
       pnpm --filter @workspace/api-server exec tsx prisma/seed-demo-user.ts
       '
@@ -72,7 +75,7 @@ services:
 
   # ── NestJS API (dev with live reload) ───────────────────────────────────────
   api:
-    image: node:20-alpine
+    image: node:20
     working_dir: /workspace
     env_file:
       - ./.env.base44-defaults
@@ -83,7 +86,7 @@ services:
       - ./:/workspace
     command: >
       sh -c '
-      corepack enable && corepack prepare pnpm@9 --activate &&
+      corepack enable && corepack prepare pnpm@10 --activate &&
       cd artifacts/api-server &&
       SWC_REGISTER=$$(node -e "console.log(require.resolve(\"@swc-node/register\"))") &&
       node --watch --watch-path src -r "$$SWC_REGISTER" src/main.ts
@@ -96,7 +99,7 @@ services:
       setup:
         condition: service_completed_successfully
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost:3001/api/healthz || exit 1"]
+      test: ["CMD-SHELL", "node -e \"require('http').get('http://localhost:3001/api/healthz',r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))\""]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -104,7 +107,7 @@ services:
 
   # ── Vite dashboard (dev with HMR) ────────────────────────────────────────────
   web:
-    image: node:20-alpine
+    image: node:20
     working_dir: /workspace
     environment:
       - NODE_ENV=development
@@ -115,7 +118,7 @@ services:
       - ./:/workspace
     command: >
       sh -c '
-      corepack enable && corepack prepare pnpm@9 --activate &&
+      corepack enable && corepack prepare pnpm@10 --activate &&
       pnpm --filter @workspace/saas-dashboard run dev
       '
     ports:

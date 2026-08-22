@@ -1,0 +1,1 @@
+{"previewPort": 3000, "healthPath": "/", "startCommand": "docker compose -f docker-compose.base44.yml up -d", "secrets": [{"name": "OPENAI_API_KEY", "description": "OpenAI API key (sk-...) from https://platform.openai.com/api-keys — needed for AI agent features. Optional in dev mode; the app boots without it but AI features won't work.", "requiredAtBoot": false}]}
