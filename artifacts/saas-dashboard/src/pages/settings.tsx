@@ -11,6 +11,7 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Separator } from '@/components/ui/separator';
+import { Switch } from '@/components/ui/switch';
 import { useToast } from '@/hooks/use-toast';
 import { useSettings, useUpdateSettings, type DashboardSettings } from '@/application/use-cases/use-settings';
 import { SectionCard, SectionTitle, NotifRow, WhatsappTab } from './settings-sections';
