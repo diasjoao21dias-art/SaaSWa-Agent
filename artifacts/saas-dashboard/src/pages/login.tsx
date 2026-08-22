@@ -192,8 +192,8 @@ export default function Login() {
           {/* Sign up hint */}
           <p className="text-center text-sm text-muted-foreground mt-6">
             Ainda não tem conta?{' '}
-            <button className="text-primary hover:text-primary/80 font-semibold transition-colors">
-              Solicitar demo
+            <button onClick={() => navigate('/register')} className="text-primary hover:text-primary/80 font-semibold transition-colors">
+              Criar conta
             </button>
           </p>
         </div>

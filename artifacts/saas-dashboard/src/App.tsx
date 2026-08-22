@@ -20,6 +20,7 @@ import Integrations from '@/pages/integrations';
 import Reports from '@/pages/reports';
 import Settings from '@/pages/settings';
 import Login from '@/pages/login';
+import Register from '@/pages/register';
 import { SubscriptionBlock } from '@/components/subscription-block';
 import { useSocketSubscription } from '@/application/use-cases/use-socket';
 
@@ -63,6 +64,7 @@ function AppRoutes() {
   return (
     <Switch>
       <Route path="/login" component={Login} />
+      <Route path="/register" component={Register} />
       <Route>
         {isAuthenticated
           ? <>

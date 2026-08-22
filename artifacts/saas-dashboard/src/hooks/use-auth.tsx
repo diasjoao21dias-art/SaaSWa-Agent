@@ -87,13 +87,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     if (!res.ok) {
       const body = await res.json().catch(() => ({}));
-      throw new Error(body?.message ?? 'Credenciais inválidas');
+      const msg = body?.message ?? body?.data?.message ?? 'Credenciais inválidas';
+      throw new Error(msg);
     }
 
-    const data = await res.json();
-    const user = buildUser({ ...data, email });
-    saveToStorage({ accessToken: data.accessToken, refreshToken: data.refreshToken, user });
-    setState({ user, accessToken: data.accessToken, isAuthenticated: true });
+    const body = await res.json();
+    const payload = body.data ?? body; // unwrap { data, meta } envelope
+    const user = buildUser({ ...payload, email });
+    saveToStorage({ accessToken: payload.accessToken, refreshToken: payload.refreshToken, user });
+    setState({ user, accessToken: payload.accessToken, isAuthenticated: true });
   }, []);
 
   const logout = useCallback(async () => {
