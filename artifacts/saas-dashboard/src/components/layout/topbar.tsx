@@ -9,18 +9,17 @@
  *  - Avatar com dropdown do usuário
  */
 import { useLocation } from 'wouter';
-import { Sun, Moon, Bell, LogOut, User, ChevronRight } from 'lucide-react';
+import { Sun, Moon, LogOut, User, ChevronRight } from 'lucide-react';
 import { useTheme } from '@/components/theme-provider';
 import { useAuth } from '@/hooks/use-auth';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
-import { Badge } from '@/components/ui/badge';
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem,
   DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { MobileMenuButton } from '@/components/layout/sidebar';
-import { cn } from '@/lib/utils';
+import { NotificationDropdown } from '@/components/layout/notification-dropdown';
 
 // ─── Route → label map ────────────────────────────────────────────────────────
 const ROUTE_META: Record<string, { label: string; description?: string }> = {
@@ -36,8 +35,6 @@ const ROUTE_META: Record<string, { label: string; description?: string }> = {
   '/reports':       { label: 'Relatórios',    description: 'Análise e performance' },
   '/settings':      { label: 'Configurações', description: 'Preferências da conta' },
 };
-
-const UNREAD_NOTIFICATIONS = 4;
 
 export function TopBar() {
   const { theme, toggleTheme } = useTheme();
@@ -70,23 +67,7 @@ export function TopBar() {
       <div className="flex items-center gap-1">
 
         {/* Notifications */}
-        <Button
-          variant="ghost"
-          size="icon"
-          className="relative w-9 h-9"
-          data-testid="button-notifications"
-        >
-          <Bell className="w-4 h-4" />
-          {UNREAD_NOTIFICATIONS > 0 && (
-            <span className={cn(
-              'absolute top-1.5 right-1.5 min-w-[14px] h-[14px] rounded-full',
-              'bg-primary text-primary-foreground text-[9px] font-bold',
-              'flex items-center justify-center leading-none px-[3px]',
-            )}>
-              {UNREAD_NOTIFICATIONS}
-            </span>
-          )}
-        </Button>
+        <NotificationDropdown />
 
         {/* Theme toggle */}
         <Button

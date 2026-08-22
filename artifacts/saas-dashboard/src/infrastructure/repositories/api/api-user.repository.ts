@@ -10,7 +10,7 @@ function mapRow(r: any): User {
     email: r.email,
     role: r.role ?? 'agent',
     status: r.status ?? 'active',
-    lastLogin: r.lastLogin ? new Date(r.lastLogin) : null,
+    lastLogin: r.lastLogin ? new Date(r.lastLogin) : new Date(),
   };
 }
 

@@ -12,8 +12,9 @@ import { Switch } from '@/components/ui/switch';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
-import { Plus, Pencil, Trash2, Check, Users, MessageSquare } from 'lucide-react';
+import { Plus, Pencil, Trash2, Check, Users, MessageSquare, CreditCard, Loader2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { useCreateCheckout, useStripeConfig } from '@/application/use-cases/use-stripe';
 import { cn } from '@/lib/utils';
 
 function PlanForm({
@@ -81,7 +82,7 @@ function PlanForm({
   );
 }
 
-function PlanCard({ plan, onEdit, onDelete }: { plan: Plan; onEdit: (p: Plan) => void; onDelete: (id: PlanId) => void }) {
+function PlanCard({ plan, onEdit, onDelete, onSubscribe }: { plan: Plan; onEdit: (p: Plan) => void; onDelete: (id: PlanId) => void; onSubscribe: (plan: Plan) => void }) {
   return (
     <div className={cn('bg-card border rounded-xl p-5 space-y-4 relative', plan.isActive ? 'border-card-border' : 'border-border opacity-60')}>
       {!plan.isActive && <Badge variant="secondary" className="absolute top-3 right-3 text-[10px]">Inativo</Badge>}
@@ -111,6 +112,9 @@ function PlanCard({ plan, onEdit, onDelete }: { plan: Plan; onEdit: (p: Plan) =>
           <Button variant="ghost" size="icon" className="w-7 h-7 text-destructive hover:text-destructive" onClick={() => onDelete(plan.id)}><Trash2 className="w-3.5 h-3.5" /></Button>
         </div>
       </div>
+      <Button className="w-full" variant={plan.isActive ? 'default' : 'secondary'} onClick={() => onSubscribe(plan)} disabled={!plan.isActive}>
+        <CreditCard className="w-4 h-4 mr-2" /> Assinar
+      </Button>
     </div>
   );
 }
@@ -124,6 +128,28 @@ export default function Plans() {
   const createPlan = useCreatePlan();
   const updatePlan = useUpdatePlan();
   const deletePlan = useDeletePlan();
+  const checkoutMutation = useCreateCheckout();
+  const { data: stripeConfig } = useStripeConfig();
+
+  const handleSubscribe = (plan: Plan) => {
+    if (!stripeConfig?.configured) {
+      toast({ title: 'Stripe não configurado', description: 'Adicione STRIPE_SECRET_KEY nas Secrets para ativar cobrança.', variant: 'destructive' });
+      return;
+    }
+    checkoutMutation.mutate(
+      { planId: plan.id, planName: plan.name, amount: plan.price, interval: plan.interval },
+      {
+        onSuccess: (res) => {
+          if (res.url) {
+            window.location.href = res.url;
+          } else if (res.error) {
+            toast({ title: 'Erro', description: res.error, variant: 'destructive' });
+          }
+        },
+        onError: () => toast({ title: 'Erro ao criar checkout', variant: 'destructive' }),
+      },
+    );
+  };
 
   const handleSubmit = (data: CreatePlanFormValues) => {
     const features = data.features?.split('\n').filter(Boolean) ?? [];
@@ -166,7 +192,7 @@ export default function Plans() {
         </Dialog>
       </div>
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-        {plans.map((p) => <PlanCard key={p.id} plan={p} onEdit={(plan) => { setEditing(plan); setDialogOpen(true); }} onDelete={handleDelete} />)}
+        {plans.map((p) => <PlanCard key={p.id} plan={p} onEdit={(plan) => { setEditing(plan); setDialogOpen(true); }} onDelete={handleDelete} onSubscribe={handleSubscribe} />)}
       </div>
     </div>
   );

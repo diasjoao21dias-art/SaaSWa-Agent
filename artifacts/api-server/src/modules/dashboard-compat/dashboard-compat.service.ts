@@ -2,12 +2,20 @@
 // DashboardCompatService — serves the Express-era dashboard API routes
 // reads from dashboard_* tables (Drizzle schema, same DB) via Prisma $queryRaw
 // =============================================================================
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
+import { EvolutionApiService } from '../../evolution/evolution-api.service';
+import { EventsGateway } from './events.gateway';
 
 @Injectable()
 export class DashboardCompatService {
-  constructor(private readonly prisma: PrismaService) {}
+  private readonly logger = new Logger(DashboardCompatService.name);
+
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly evolution: EvolutionApiService,
+    private readonly events: EventsGateway,
+  ) {}
 
   // ─── Conversations ──────────────────────────────────────────────────────────
   async listConversations(params: { status?: string; agentId?: string; clientId?: string }) {
@@ -299,22 +307,23 @@ export class DashboardCompatService {
   }
 
   async getFinancialReport() {
-    const stats: any[] = await this.prisma.$queryRawUnsafe(`
+    const rows: any[] = await this.prisma.$queryRawUnsafe(`
+      WITH months AS (
+        SELECT generate_series(
+          (DATE_TRUNC('month', CURRENT_DATE) - INTERVAL '11 months')::date,
+          DATE_TRUNC('month', CURRENT_DATE)::date,
+          '1 month'::interval
+        )::date AS month
+      )
       SELECT
-        COALESCE(SUM(amount) FILTER (WHERE type = 'income' AND status = 'paid'), 0) AS mrr,
-        COALESCE(SUM(amount) FILTER (WHERE type = 'expense' AND status = 'paid'), 0) AS expenses,
-        COUNT(*) FILTER (WHERE status = 'pending') AS pending_count,
-        COUNT(*) FILTER (WHERE status = 'overdue') AS overdue_count
-      FROM dashboard_transactions
+        to_char(m.month, 'MM/YYYY') AS label,
+        COALESCE(SUM(t.amount) FILTER (WHERE t.type = 'income' AND t.status = 'paid'), 0) AS value
+      FROM months m
+      LEFT JOIN dashboard_transactions t ON DATE_TRUNC('month', t.created_at) = m.month
+      GROUP BY m.month
+      ORDER BY m.month ASC
     `);
-    const s = stats[0];
-    return {
-      mrr: Number(s.mrr),
-      expenses: Number(s.expenses),
-      netRevenue: Number(s.mrr) - Number(s.expenses),
-      pendingCount: Number(s.pending_count),
-      overdueCount: Number(s.overdue_count),
-    };
+    return rows.map(r => ({ label: r.label, value: Number(r.value) }));
   }
 
   private mapTransaction(r: any) {
@@ -355,7 +364,7 @@ export class DashboardCompatService {
 
   // ─── Dashboard Stats ─────────────────────────────────────────────────────────
   async getDashboardStats() {
-    const [convRows, clientRows, agentRows, finRows]: any[] = await Promise.all([
+    const [convRows, clientRows, agentRows, finRows, attRows, scoreRows, responseRows]: any[] = await Promise.all([
       this.prisma.$queryRawUnsafe(`
         SELECT
           COUNT(*) AS total,
@@ -372,11 +381,20 @@ export class DashboardCompatService {
         FROM dashboard_agents
       `),
       this.prisma.$queryRawUnsafe(`
-        SELECT COALESCE(SUM(amount) FILTER (WHERE type = 'income' AND status = 'paid'), 0) AS mrr
+        SELECT
+          COALESCE(SUM(amount) FILTER (WHERE type = 'income' AND status = 'paid'), 0) AS mrr,
+          COALESCE(SUM(amount) FILTER (WHERE type = 'income' AND status = 'paid' AND created_at > NOW() - INTERVAL '30 days'), 0) AS mrr_this_month,
+          COALESCE(SUM(amount) FILTER (WHERE type = 'income' AND status = 'paid' AND created_at <= NOW() - INTERVAL '30 days' AND created_at > NOW() - INTERVAL '60 days'), 0) AS mrr_last_month
         FROM dashboard_transactions
       `),
+      this.prisma.$queryRawUnsafe(`SELECT COUNT(*) AS total FROM dashboard_attendances`),
+      this.prisma.$queryRawUnsafe(`SELECT COALESCE(AVG(satisfaction_score), 0) AS avg_score FROM dashboard_agents WHERE satisfaction_score IS NOT NULL`),
+      this.prisma.$queryRawUnsafe(`SELECT COALESCE(AVG(NULLIF(duration_seconds, 0)), 0) AS avg_response FROM dashboard_attendances WHERE duration_seconds IS NOT NULL AND duration_seconds > 0`),
     ]);
-    const c = convRows[0]; const cl = clientRows[0]; const ag = agentRows[0]; const fi = finRows[0];
+    const c = convRows[0]; const cl = clientRows[0]; const ag = agentRows[0]; const fi = finRows[0]; const at = attRows[0]; const sc = scoreRows[0]; const rs = responseRows[0];
+    const mrrThis = Number(fi.mrr_this_month);
+    const mrrLast = Number(fi.mrr_last_month);
+    const mrrGrowth = mrrLast > 0 ? Math.round(((mrrThis - mrrLast) / mrrLast) * 100) : 0;
     return {
       totalConversations: Number(c.total),
       openConversations: Number(c.open_count),
@@ -385,37 +403,206 @@ export class DashboardCompatService {
       activeClients: Number(cl.active_count),
       totalAgents: Number(ag.total),
       onlineAgents: Number(ag.online_count),
+      totalAttendances: Number(at.total),
       mrr: Number(fi.mrr),
+      mrrGrowth,
+      avgResponseTime: Math.round(Number(rs.avg_response) || 45),
+      satisfactionScore: Math.round((Number(sc.avg_score) || 4.5) * 20),
     };
   }
 
   async getDashboardActivity() {
     const rows: any[] = await this.prisma.$queryRawUnsafe(`
-      SELECT 'conversation' AS type, id, client_name AS label, status, updated_at AS ts FROM dashboard_conversations
+      SELECT 'conversation' AS type, id, client_name AS title, agent_name AS actor, status, updated_at AS created_at FROM dashboard_conversations
       UNION ALL
-      SELECT 'client' AS type, id, name AS label, status, created_at AS ts FROM dashboard_clients
-      ORDER BY ts DESC LIMIT 20
+      SELECT 'client' AS type, id, name AS title, NULL AS actor, status, created_at FROM dashboard_clients
+      UNION ALL
+      SELECT 'attendance' AS type, id, client_name AS title, agent_name AS actor, status, created_at FROM dashboard_attendances
+      ORDER BY created_at DESC LIMIT 20
     `);
+    const typeDescriptions: Record<string, (r: any) => string> = {
+      conversation: (r) => `Conversa ${r.status === 'open' ? 'aberta' : r.status === 'closed' ? 'fechada' : 'pendente'}`,
+      client: (r) => `Cliente ${r.status === 'active' ? 'ativo' : 'inativo'}`,
+      attendance: (r) => `Atendimento ${r.status === 'open' ? 'em andamento' : r.status === 'resolved' ? 'finalizado' : 'escalado'}`,
+    };
     return rows.map(r => ({
-      type: r.type, id: r.id, label: r.label,
-      status: r.status, timestamp: r.ts,
+      id: r.id,
+      type: r.type,
+      title: r.title,
+      description: typeDescriptions[r.type]?.(r) ?? r.status,
+      actor: r.actor,
+      createdAt: r.created_at,
     }));
   }
 
   // ─── Reports ─────────────────────────────────────────────────────────────────
   async getConversationReport() {
     const rows: any[] = await this.prisma.$queryRawUnsafe(`
+      WITH days AS (
+        SELECT generate_series(
+          (CURRENT_DATE - INTERVAL '29 days')::date,
+          CURRENT_DATE::date,
+          '1 day'::interval
+        )::date AS day
+      )
       SELECT
-        DATE_TRUNC('day', created_at) AS date,
-        COUNT(*) AS total,
-        COUNT(*) FILTER (WHERE status = 'closed') AS closed_count
-      FROM dashboard_conversations
-      GROUP BY DATE_TRUNC('day', created_at)
-      ORDER BY date DESC LIMIT 30
+        to_char(d.day, 'DD/MM') AS label,
+        COALESCE(COUNT(c.id), 0) AS value
+      FROM days d
+      LEFT JOIN dashboard_conversations c ON DATE(c.created_at) = d.day
+      GROUP BY d.day, d.day::text
+      ORDER BY d.day ASC
     `);
+    return rows.map(r => ({ label: r.label, value: Number(r.value) }));
+  }
+
+  // ─── Settings ─────────────────────────────────────────────────────────────────
+  async getSettings() {
+    const rows: any[] = await this.prisma.$queryRawUnsafe(`SELECT * FROM dashboard_settings WHERE id = 'default'`);
+    if (!rows[0]) {
+      await this.prisma.$executeRawUnsafe(`INSERT INTO dashboard_settings (id) VALUES ('default') ON CONFLICT DO NOTHING`);
+      const retry: any[] = await this.prisma.$queryRawUnsafe(`SELECT * FROM dashboard_settings WHERE id = 'default'`);
+      return this.mapSettings(retry[0]);
+    }
+    return this.mapSettings(rows[0]);
+  }
+
+  async updateSettings(data: any) {
+    const fields = [
+      'company_name', 'website', 'support_email', 'phone',
+      'timezone', 'language', 'date_format', 'time_format',
+      'notif_new_conversation', 'notif_agent_assignment', 'notif_escalation',
+      'notif_payment_update', 'notif_agent_offline', 'notif_weekly_report', 'notif_conversation_limit',
+      'twofa_enabled', 'login_notification',
+      'evolution_url', 'evolution_key', 'webhook_secret',
+      'whatsapp_connected', 'whatsapp_phone',
+      'bot_auto_reconnect', 'bot_escalate_silence', 'bot_log_all',
+      'subscription_status',
+    ];
+    const sets: string[] = ['updated_at = now()'];
+    const vals: any[] = [];
+    let i = 1;
+    for (const f of fields) {
+      const camelKey = f.replace(/_([a-z])/g, (_, c) => c.toUpperCase());
+      if (data[camelKey] !== undefined) { sets.push(`${f} = $${i++}`); vals.push(data[camelKey]); }
+      if (data[f] !== undefined) { sets.push(`${f} = $${i++}`); vals.push(data[f]); }
+    }
+    vals.push('default');
+    await this.prisma.$executeRawUnsafe(
+      `UPDATE dashboard_settings SET ${sets.join(', ')} WHERE id = $${i}`, ...vals
+    );
+    return this.getSettings();
+  }
+
+  private mapSettings(r: any) {
+    return {
+      companyName: r.company_name, website: r.website, supportEmail: r.support_email, phone: r.phone,
+      timezone: r.timezone, language: r.language, dateFormat: r.date_format, timeFormat: r.time_format,
+      notifNewConversation: r.notif_new_conversation, notifAgentAssignment: r.notif_agent_assignment,
+      notifEscalation: r.notif_escalation, notifPaymentUpdate: r.notif_payment_update,
+      notifAgentOffline: r.notif_agent_offline, notifWeeklyReport: r.notif_weekly_report,
+      notifConversationLimit: r.notif_conversation_limit,
+      twofaEnabled: r.twofa_enabled, loginNotification: r.login_notification,
+      evolutionUrl: r.evolution_url, evolutionKey: r.evolution_key, webhookSecret: r.webhook_secret,
+      whatsappConnected: r.whatsapp_connected, whatsappPhone: r.whatsapp_phone,
+      botAutoReconnect: r.bot_auto_reconnect, botEscalateSilence: r.bot_escalate_silence, botLogAll: r.bot_log_all,
+      subscriptionStatus: r.subscription_status,
+      updatedAt: r.updated_at,
+    };
+  }
+
+  // ─── Messages (chat) ───────────────────────────────────────────────────────
+  async listMessages(conversationId: string) {
+    const rows: any[] = await this.prisma.$queryRawUnsafe(
+      `SELECT * FROM dashboard_messages WHERE conversation_id = $1 ORDER BY created_at ASC`, conversationId
+    );
     return rows.map(r => ({
-      date: r.date, total: Number(r.total), closed: Number(r.closed_count),
+      id: r.id, conversationId: r.conversation_id, sender: r.sender,
+      content: r.content, createdAt: r.created_at,
     }));
+  }
+
+  async sendMessage(conversationId: string, data: any) {
+    const { v4: uuidv4 } = await import('uuid');
+    const id = uuidv4();
+    await this.prisma.$executeRawUnsafe(
+      `INSERT INTO dashboard_messages (id, conversation_id, sender, content, created_at) VALUES ($1,$2,$3,$4,now())`,
+      id, conversationId, data.sender || 'agent', data.content
+    );
+    // Update conversation's last_message
+    await this.prisma.$executeRawUnsafe(
+      `UPDATE dashboard_conversations SET last_message = $1, updated_at = now() WHERE id = $2`,
+      data.content.slice(0, 100), conversationId
+    );
+    const rows: any[] = await this.prisma.$queryRawUnsafe(`SELECT * FROM dashboard_messages WHERE id = $1`, id);
+    const result = rows[0] ? { id: rows[0].id, conversationId: rows[0].conversation_id, sender: rows[0].sender, content: rows[0].content, createdAt: rows[0].created_at } : null;
+    // Broadcast via WebSocket for real-time updates
+    if (result) {
+      this.events.emitNewMessage(conversationId, result);
+    }
+    return result;
+  }
+
+  // ─── WhatsApp (Evolution API) ───────────────────────────────────────────────
+  async connectWhatsapp() {
+    const instanceName = `tenant-default-${Date.now()}`;
+    try {
+      const res = await this.evolution.createInstance(instanceName);
+      const qrCode = res.qrcode?.base64 ?? '';
+      const pairCode = res.qrcode?.pairingCode ?? null;
+      // Save instance name in settings
+      await this.prisma.$executeRawUnsafe(
+        `UPDATE dashboard_settings SET whatsapp_connected = false, whatsapp_phone = $1, updated_at = now() WHERE id = 'default'`,
+        instanceName,
+      );
+      return { instance: instanceName, qrCode, pairCode, status: 'connecting' };
+    } catch (err) {
+      this.logger.warn(`Evolution API connect failed: ${err instanceof Error ? err.message : String(err)}`);
+      return { error: err instanceof Error ? err.message : 'Evolution API not available. Make sure the server is running.' };
+    }
+  }
+
+  async getWhatsappStatus() {
+    const rows: any[] = await this.prisma.$queryRawUnsafe(
+      `SELECT whatsapp_connected, whatsapp_phone FROM dashboard_settings WHERE id = 'default'`,
+    );
+    const connected = rows[0]?.whatsapp_connected ?? false;
+    const phone = rows[0]?.whatsapp_phone ?? '';
+    if (!phone) return { connected: false, instance: null, state: 'disconnected' };
+    try {
+      const state = await this.evolution.getConnectionState(phone);
+      const stateValue = state.instance?.state ?? 'close';
+      const isConnected = stateValue === 'open';
+      if (isConnected !== connected) {
+        await this.prisma.$executeRawUnsafe(
+          `UPDATE dashboard_settings SET whatsapp_connected = $1, updated_at = now() WHERE id = 'default'`,
+          isConnected,
+        );
+      }
+      return { connected: isConnected, instance: phone, state: stateValue };
+    } catch {
+      return { connected, instance: phone, state: connected ? 'open' : 'disconnected' };
+    }
+  }
+
+  async disconnectWhatsapp() {
+    const rows: any[] = await this.prisma.$queryRawUnsafe(
+      `SELECT whatsapp_phone FROM dashboard_settings WHERE id = 'default'`,
+    );
+    const instance = rows[0]?.whatsapp_phone ?? '';
+    if (instance) {
+      try { await this.evolution.disconnectInstance(instance); } catch { /* ignore */ }
+    }
+    await this.prisma.$executeRawUnsafe(
+      `UPDATE dashboard_settings SET whatsapp_connected = false, whatsapp_phone = '', updated_at = now() WHERE id = 'default'`,
+    );
+    return { disconnected: true };
+  }
+
+  // ─── Subscription status ────────────────────────────────────────────────────
+  async getSubscriptionStatus() {
+    const rows: any[] = await this.prisma.$queryRawUnsafe(`SELECT subscription_status FROM dashboard_settings WHERE id = 'default'`);
+    return { status: rows[0]?.subscription_status ?? 'active' };
   }
 
   async getChannelBreakdown() {
@@ -423,6 +610,11 @@ export class DashboardCompatService {
       SELECT channel, COUNT(*) AS count
       FROM dashboard_conversations GROUP BY channel
     `);
-    return rows.map(r => ({ channel: r.channel, count: Number(r.count) }));
+    const total = rows.reduce((s: number, r: any) => s + Number(r.count), 0);
+    return rows.map(r => ({
+      channel: r.channel,
+      count: Number(r.count),
+      percentage: total > 0 ? Math.round((Number(r.count) / total) * 100) : 0,
+    }));
   }
 }

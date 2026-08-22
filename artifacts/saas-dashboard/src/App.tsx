@@ -20,6 +20,9 @@ import Integrations from '@/pages/integrations';
 import Reports from '@/pages/reports';
 import Settings from '@/pages/settings';
 import Login from '@/pages/login';
+import Register from '@/pages/register';
+import { SubscriptionBlock } from '@/components/subscription-block';
+import { useSocketSubscription } from '@/application/use-cases/use-socket';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -28,6 +31,7 @@ const queryClient = new QueryClient({
 });
 
 function DashboardLayout() {
+  useSocketSubscription();
   return (
     <div className="flex h-screen w-full overflow-hidden">
       <Sidebar />
@@ -60,9 +64,13 @@ function AppRoutes() {
   return (
     <Switch>
       <Route path="/login" component={Login} />
+      <Route path="/register" component={Register} />
       <Route>
         {isAuthenticated
-          ? <DashboardLayout />
+          ? <>
+            <DashboardLayout />
+            <SubscriptionBlock />
+          </>
           : <Redirect to="/login" />}
       </Route>
     </Switch>

@@ -5,10 +5,12 @@ import { StatusBadge } from '@/components/ui/status-badge';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
-import { Search, Filter } from 'lucide-react';
+import { Search, Filter, MessageSquare } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 import { formatDistanceToNow } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
+import { ChatPanel } from '@/components/chat/chat-panel';
 
 const CHANNEL_COLORS: Record<string, string> = {
   WhatsApp: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400',
@@ -33,12 +35,17 @@ function useFilteredConversations(conversations: readonly Conversation[], search
 function ConversationRow({
   conversation,
   onStatusChange,
+  onOpenChat,
 }: {
   conversation: Conversation;
   onStatusChange: (id: string, status: ConversationStatus) => void;
+  onOpenChat: (conversation: Conversation) => void;
 }) {
   return (
-    <div className="flex items-center gap-4 px-4 py-3 hover:bg-accent/30 transition-colors border-b border-border last:border-0">
+    <div
+      className="flex items-center gap-4 px-4 py-3 hover:bg-accent/30 transition-colors border-b border-border last:border-0 cursor-pointer"
+      onClick={() => onOpenChat(conversation)}
+    >
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 flex-wrap">
           <span className="text-sm font-medium text-foreground">{conversation.clientName}</span>
@@ -69,6 +76,14 @@ function ConversationRow({
         <span className="text-[11px] text-muted-foreground whitespace-nowrap hidden md:block">
           {formatDistanceToNow(conversation.updatedAt, { addSuffix: true, locale: ptBR })}
         </span>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="w-8 h-8 shrink-0"
+          onClick={(e) => { e.stopPropagation(); onOpenChat(conversation); }}
+        >
+          <MessageSquare className="w-4 h-4" />
+        </Button>
       </div>
     </div>
   );
@@ -77,6 +92,7 @@ function ConversationRow({
 export default function Conversations() {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<ConversationStatus | ''>('');
+  const [chatConversation, setChatConversation] = useState<Conversation | null>(null);
 
   const { data: conversations = [], isLoading } = useConversations(
     statusFilter ? { status: statusFilter } : undefined,
@@ -130,10 +146,19 @@ export default function Conversations() {
               key={c.id}
               conversation={c}
               onStatusChange={(id, status) => updateStatus({ id: id as Conversation['id'], status })}
+              onOpenChat={setChatConversation}
             />
           ))
         )}
       </div>
+
+      {chatConversation && (
+        <ChatPanel
+          conversationId={chatConversation.id}
+          clientName={chatConversation.clientName}
+          onClose={() => setChatConversation(null)}
+        />
+      )}
     </div>
   );
 }
